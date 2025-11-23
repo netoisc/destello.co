@@ -123,6 +123,7 @@ function PeoplePageContent() {
   const [eventName, setEventName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [opcionesSeleccionadas, setOpcionesSeleccionadas] = useState<string[]>([]);
 
   useEffect(() => {
     if (!eventId) {
@@ -162,7 +163,7 @@ function PeoplePageContent() {
 
         const { data: guests } = await supabase
           .from("guests")
-          .select("nombre")
+          .select("nombre, opciones_seleccionadas")
           .eq("event_id", eventId)
           .eq("response", "yes");
 
@@ -188,9 +189,24 @@ function PeoplePageContent() {
           });
         }
 
+        // Consolidar todas las opciones seleccionadas sin duplicados
+        const todasOpciones = new Set<string>();
+        if (guests) {
+          guests.forEach((g) => {
+            if (g.opciones_seleccionadas && Array.isArray(g.opciones_seleccionadas)) {
+              g.opciones_seleccionadas.forEach((opcion: string) => {
+                if (opcion && opcion.trim()) {
+                  todasOpciones.add(opcion.trim());
+                }
+              });
+            }
+          });
+        }
+
         if (!cancelled) {
           setEventName(event.nombre);
           setPeople(peopleList);
+          setOpcionesSeleccionadas(Array.from(todasOpciones));
           setLoading(false);
         }
       } catch (err: any) {
@@ -271,6 +287,27 @@ function PeoplePageContent() {
           </div>
         </div>
       </div>
+
+      {/* Chips de opciones seleccionadas debajo de la esfera */}
+      {opcionesSeleccionadas.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 z-20">
+          <div className="max-w-7xl mx-auto">
+            <p className="text-white/40 text-xs text-center mb-2 font-light">
+              Algunos invitados llevarán:
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {opcionesSeleccionadas.map((opcion, index) => (
+                <span
+                  key={index}
+                  className="px-3 py-1.5 bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-500/50 rounded-full text-sm text-white/90 backdrop-blur-sm"
+                >
+                  {opcion}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

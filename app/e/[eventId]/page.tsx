@@ -31,6 +31,7 @@ export default function EventPage() {
   const [currentSection, setCurrentSection] = useState(0);
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [confirmados, setConfirmados] = useState(0);
+  const [guestsWithOptions, setGuestsWithOptions] = useState<Array<{nombre: string; opciones_seleccionadas: string[]}>>([]);
   const [nombreInvitado, setNombreInvitado] = useState("");
   const [opcionesSeleccionadas, setOpcionesSeleccionadas] = useState<string[]>([]);
   const [haRespondido, setHaRespondido] = useState(false);
@@ -165,14 +166,24 @@ export default function EventPage() {
           count += event.anfitriones.split(",").filter((a: string) => a.trim()).length;
         }
         
-        const { count: acceptedCount } = await supabase
+        // Cargar invitados con opciones (para vista del owner)
+        const { data: guestsData } = await supabase
           .from("guests")
-          .select("*", { count: "exact", head: true })
+          .select("nombre, opciones_seleccionadas")
           .eq("event_id", eventId)
           .eq("response", "yes");
 
+        const acceptedCount = guestsData?.length || 0;
+
         if (!cancelled) {
-          setConfirmados(count + (acceptedCount || 0));
+          setConfirmados(count + acceptedCount);
+          // Guardar invitados con opciones para mostrar en vista del owner
+          if (guestsData) {
+            setGuestsWithOptions(guestsData.map((g: any) => ({
+              nombre: g.nombre,
+              opciones_seleccionadas: g.opciones_seleccionadas || []
+            })));
+          }
 
           // Formatear fecha/hora
           const fechaHora = new Date(event.fecha);
@@ -242,13 +253,17 @@ export default function EventPage() {
             const nombreValue = nombreCookie.split("=")[1];
             setNombreInvitado(nombreValue);
             
-            // Verificar si ya presionó Continuar (si tiene cookie de continuar o si ya está en /people)
+            // Verificar si ya presionó Continuar (si tiene cookie de continuar)
             const continuadoCookie = allCookies.find((row) => row.startsWith(`destello_continuado_${eventId}`));
-            if (continuadoCookie || window.location.pathname.includes('/people')) {
+            if (continuadoCookie) {
               setHaContinuado(true);
+              // Si ya continuó, redirigir a /people
               router.push(`/e/${eventId}/people`);
               return;
             }
+            
+            // Si no ha continuado pero tiene nombre, mostrar sección de nombre
+            // (ya tiene currentSection = 4 más abajo)
           }
           
           // Si aceptó pero no tiene nombre, ir a sección de nombre
@@ -261,12 +276,114 @@ export default function EventPage() {
     
     // Verificar cookies inmediatamente
     checkCookies();
+  }, [eventId, router]);
+
+  // Prevenir back button cuando el invitado ya confirmó
+  useEffect(() => {
+    if (!eventId) return;
     
-    // También verificar cuando eventData se carga (por si acaso)
-    if (eventData) {
-      checkCookies();
+    // Verificar si ya respondió (aceptó o rechazó) o si ya continuó
+    const checkIfConfirmed = () => {
+      if (typeof window === 'undefined') return false;
+      const allCookies = document.cookie.split('; ');
+      const responseCookie = allCookies.find((row) => row.startsWith(`destello_response_${eventId}`));
+      const continuadoCookie = allCookies.find((row) => row.startsWith(`destello_continuado_${eventId}`));
+      return !!responseCookie || !!continuadoCookie;
+    };
+    
+    const isConfirmed = haRespondido || checkIfConfirmed();
+    
+    if (isConfirmed && !isOwner) {
+      // Agregar una entrada al historial para interceptar el back
+      window.history.pushState(null, '', window.location.href);
+      
+      const handlePopState = () => {
+        // Si se detecta back y ya confirmó, redirigir según el estado
+        
+        // Verificar cookies actuales
+        const allCookies = document.cookie.split('; ');
+        const responseCookie = allCookies.find((row) => row.startsWith(`destello_response_${eventId}`));
+        const continuadoCookie = allCookies.find((row) => row.startsWith(`destello_continuado_${eventId}`));
+        
+        if (responseCookie) {
+          const response = responseCookie.split("=")[1];
+          
+          if (response === "yes" && continuadoCookie) {
+            // Si aceptó y ya continuó, redirigir a /people
+            router.push(`/e/${eventId}/people`);
+          } else if (response === "yes") {
+            // Si aceptó pero no continuó, quedarse en la página actual (sección de nombre)
+            // No redirigir, solo prevenir el back
+            window.history.pushState(null, '', window.location.href);
+          } else {
+            // Si rechazó, quedarse en la página de "Gracias"
+            // No redirigir, solo prevenir el back
+            window.history.pushState(null, '', window.location.href);
+          }
+        } else {
+          // Si no hay cookie de respuesta, redirigir al home
+          router.push('/');
+        }
+      };
+      
+      window.addEventListener('popstate', handlePopState);
+      
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
     }
-  }, [eventId, eventData, router]);
+  }, [eventId, haRespondido, isOwner, router]);
+
+  // Prevenir back button cuando el invitado ya confirmó
+  useEffect(() => {
+    if (!eventId || isOwner) return;
+    
+    // Verificar si ya respondió (aceptó o rechazó) o si ya continuó
+    const checkIfConfirmed = () => {
+      if (typeof window === 'undefined') return false;
+      const allCookies = document.cookie.split('; ');
+      const responseCookie = allCookies.find((row) => row.startsWith(`destello_response_${eventId}`));
+      const continuadoCookie = allCookies.find((row) => row.startsWith(`destello_continuado_${eventId}`));
+      return !!responseCookie || !!continuadoCookie;
+    };
+    
+    const isConfirmed = haRespondido || checkIfConfirmed();
+    
+    if (isConfirmed) {
+      // Agregar una entrada al historial para interceptar el back
+      window.history.pushState(null, '', window.location.href);
+      
+      const handlePopState = (e: PopStateEvent) => {
+        // Verificar cookies actuales para saber a dónde redirigir
+        const allCookies = document.cookie.split('; ');
+        const responseCookie = allCookies.find((row) => row.startsWith(`destello_response_${eventId}`));
+        const continuadoCookie = allCookies.find((row) => row.startsWith(`destello_continuado_${eventId}`));
+        
+        if (responseCookie) {
+          const response = responseCookie.split("=")[1];
+          
+          if (response === "yes" && continuadoCookie) {
+            // Si aceptó y ya continuó, redirigir a /people
+            e.preventDefault();
+            router.push(`/e/${eventId}/people`);
+          } else {
+            // Si aceptó pero no continuó, o si rechazó, quedarse en la página actual
+            // Volver a agregar la entrada al historial para prevenir navegación
+            window.history.pushState(null, '', window.location.href);
+          }
+        } else {
+          // Si no hay cookie de respuesta, redirigir al home
+          router.push('/');
+        }
+      };
+      
+      window.addEventListener('popstate', handlePopState);
+      
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [eventId, haRespondido, isOwner, router]);
 
   // Removed auto-scroll logic since cosmic entry is removed
 
@@ -431,6 +548,25 @@ export default function EventPage() {
               <p className="text-white/60 text-sm mb-1">Invitados confirmados</p>
               <p className="text-3xl font-bold text-purple-300">{confirmados}</p>
             </div>
+
+            {/* Lista de invitados con sus opciones seleccionadas */}
+            {guestsWithOptions.length > 0 && (
+              <div>
+                <p className="text-white/60 text-sm mb-2">Opciones seleccionadas por invitado</p>
+                <div className="space-y-1.5">
+                  {guestsWithOptions.map((guest, index) => (
+                    <p key={index} className="text-white/80 text-sm">
+                      <span className="font-semibold">{guest.nombre}:</span>{" "}
+                      {guest.opciones_seleccionadas && guest.opciones_seleccionadas.length > 0 ? (
+                        <span className="text-white/70">{guest.opciones_seleccionadas.join(", ")}</span>
+                      ) : (
+                        <span className="text-white/50 italic">Nada seleccionado</span>
+                      )}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {eventData.anfitriones && (
               <div>
