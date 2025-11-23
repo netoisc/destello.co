@@ -61,8 +61,13 @@ export default function EventPage() {
   const goToNextSection = () => {
     let nextSection = currentVisibleSection + 1;
     
+    // Mapeo de secciones (hay gap: 0 -> 2 -> 3 -> 4 -> 6)
+    // Sección 0 (Header) -> Sección 2 (Detalles)
+    if (currentVisibleSection === 0) {
+      nextSection = 2;
+    }
     // Saltar secciones según el estado
-    if (haRespondido && nextSection === 3) {
+    else if (haRespondido && nextSection === 3) {
       // Si ya respondió, ir a la sección correspondiente
       if (respuesta === "yes") {
         nextSection = 4; // Ir a sección de nombre si aceptó
@@ -76,7 +81,7 @@ export default function EventPage() {
     }
     
     // Validar que la sección existe
-    if (nextSection < sectionRefs.current.length && sectionRefs.current[nextSection]) {
+    if (sectionRefs.current[nextSection]) {
       scrollToSection(nextSection);
     }
   };
@@ -85,8 +90,13 @@ export default function EventPage() {
   const goToPreviousSection = () => {
     let prevSection = currentVisibleSection - 1;
     
+    // Mapeo de secciones (hay gap: 0 -> 2 -> 3 -> 4 -> 6)
+    // Sección 2 (Detalles) -> Sección 0 (Header)
+    if (currentVisibleSection === 2) {
+      prevSection = 0;
+    }
     // Saltar secciones según el estado
-    if (haRespondido && prevSection === 3) {
+    else if (haRespondido && prevSection === 3) {
       prevSection = 2; // Saltar confirmación si ya respondió
     }
     
