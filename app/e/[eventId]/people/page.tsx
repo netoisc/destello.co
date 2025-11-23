@@ -3,8 +3,8 @@
 
 import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useParams } from "next/navigation";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Text, TrackballControls, Billboard } from "@react-three/drei";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { Billboard, Text, TrackballControls } from "@react-three/drei";
 import * as THREE from "three";
 import { supabase } from "@/lib/supabase";
 import StarsBackground from "@/components/stars-background";
@@ -14,207 +14,76 @@ interface Person {
   tipo: "owner" | "anfitrion" | "invitado";
 }
 
-// Componente Word con profundidad real basada en distancia Z
 function Word({ children, ...props }: any) {
   const color = new THREE.Color();
-  const ref = useRef<any>(null);
-  const groupRef = useRef<THREE.Group>(null);
-  const { camera } = useThree();
+  const fontProps = { fontSize: 2.5, letterSpacing: -0.05, lineHeight: 1, 'material-toneMapped': false };
+  const ref = useRef<any>();
   const [hovered, setHovered] = useState(false);
-  
-  const baseFontSize = props.fontSize || 1.0;
-  const position = useMemo(() => new THREE.Vector3(...props.position), [props.position]);
-  
-  const over = (e: any) => {
-    e.stopPropagation();
-    setHovered(true);
-  };
-  
-  const out = () => {
-    setHovered(false);
-  };
+  const over = (e: any) => (e.stopPropagation(), setHovered(true));
+  const out = () => setHovered(false);
   
   useEffect(() => {
-    if (hovered) {
-      document.body.style.cursor = 'pointer';
-    } else {
-      document.body.style.cursor = 'auto';
-    }
-    return () => {
-      document.body.style.cursor = 'auto';
-    };
+    if (hovered) document.body.style.cursor = 'pointer';
+    return () => (document.body.style.cursor = 'auto');
   }, [hovered]);
   
-  // Calcular profundidad real basada en distancia Z desde la cámara
   useFrame(() => {
-    if (!ref.current || !groupRef.current || !camera) return;
-    
-    // Obtener posición mundial
-    const worldPos = new THREE.Vector3();
-    groupRef.current.getWorldPosition(worldPos);
-    
-    // Vector desde la cámara al objeto
-    const cameraToObject = worldPos.clone().sub(camera.position);
-    
-    // Vector forward de la cámara (hacia donde mira)
-    const cameraForward = new THREE.Vector3(0, 0, -1);
-    cameraForward.applyQuaternion(camera.quaternion);
-    
-    // Calcular profundidad usando producto punto
-    const objectDir = cameraToObject.normalize();
-    const dot = objectDir.dot(cameraForward);
-    
-    // Normalizar: -1 (atrás) a 1 (frente) -> 0 a 1
-    const depthFactor = Math.max(0.3, (dot + 1) / 2);
-    
-    // Aplicar curva suave para transición natural
-    const smoothDepth = Math.pow(depthFactor, 1.5);
-    
-    // Escala basada en profundidad: fondo 0.4x, frente 1.0x
-    const scale = 0.4 + (smoothDepth * 0.6);
-    
-    // Opacidad basada en profundidad: fondo 0.4, frente 1.0
-    const opacity = 0.4 + (smoothDepth * 0.6);
-    
-    // Aplicar escala
-    groupRef.current.scale.setScalar(scale);
-    
-    // Aplicar color
-    if (ref.current.material?.color) {
-      const targetColor = hovered ? '#c084fc' : 'white';
-      ref.current.material.color.lerp(color.set(targetColor), 0.1);
-    }
-    
-    // Aplicar opacidad
-    if (ref.current.material?.opacity !== undefined) {
-      ref.current.material.opacity = opacity;
-      ref.current.material.transparent = true;
+    if (ref.current?.material?.color) {
+      ref.current.material.color.lerp(color.set(hovered ? '#c084fc' : 'white'), 0.1);
     }
   });
   
   return (
-    <Billboard position={position}>
-      <group ref={groupRef}>
-        <Text
-          ref={ref}
-          onPointerOver={over}
-          onPointerOut={out}
-          fontSize={baseFontSize}
-          letterSpacing={-0.05}
-          lineHeight={1}
-          anchorX="center"
-          anchorY="middle"
-          outlineWidth={0.01}
-          outlineColor="#000000"
-          color="white"
-          material-toneMapped={false}
-        >
-          {children}
-        </Text>
-      </group>
+    <Billboard {...props}>
+      <Text ref={ref} onPointerOver={over} onPointerOut={out} {...fontProps} children={children} />
     </Billboard>
   );
 }
 
-// Distribución esférica exactamente como el ejemplo
-function Cloud({ people, radius }: { people: Person[]; radius: number }) {
+function Cloud({ people, radius = 20 }: { people: Person[]; radius?: number }) {
+  const count = Math.ceil(Math.sqrt(people.length)) || 4;
+  
   const words = useMemo(() => {
     const temp: Array<[THREE.Vector3, string]> = [];
     const spherical = new THREE.Spherical();
-    const count = Math.ceil(Math.sqrt(people.length)) || 4;
     const phiSpan = Math.PI / (count + 1);
     const thetaSpan = (Math.PI * 2) / count;
     
     let index = 0;
     for (let i = 1; i < count + 1; i++) {
       for (let j = 0; j < count && index < people.length; j++) {
-        const pos = new THREE.Vector3().setFromSpherical(
-          spherical.set(radius, phiSpan * i, thetaSpan * j)
-        );
-        temp.push([pos, people[index].nombre]);
+        temp.push([
+          new THREE.Vector3().setFromSpherical(spherical.set(radius, phiSpan * i, thetaSpan * j)),
+          people[index].nombre
+        ]);
         index++;
       }
     }
     return temp;
-  }, [people, radius]);
+  }, [people, count, radius]);
   
-  // Tamaño de fuente mucho más pequeño, como en la referencia
-  const baseFontSize = useMemo(() => {
-    const count = people.length;
-    // Fuentes pequeñas para que se vean bien en móvil y se aprecie la esfera
-    if (count === 1) return 1.0;
-    if (count === 2) return 0.9;
-    if (count === 3) return 0.85;
-    if (count <= 5) return 0.8;
-    if (count <= 8) return 0.75;
-    if (count <= 15) return 0.7;
-    return 0.6; // Muchas palabras: muy pequeñas
-  }, [people.length]);
-  
-  return (
-    <>
-      {words.map(([pos, nombre], index) => {
-        // Tamaños diferentes según tipo
-        const fontSize = people[index]?.tipo === "owner" 
-          ? baseFontSize * 1.3 
-          : people[index]?.tipo === "anfitrion" 
-          ? baseFontSize * 1.1 
-          : baseFontSize;
-        
-        return (
-          <Word key={`${nombre}-${index}`} position={pos} fontSize={fontSize}>
-            {nombre}
-          </Word>
-        );
-      })}
-    </>
-  );
+  return words.map(([pos, word], index) => (
+    <Word key={index} position={pos} children={word} />
+  ));
 }
 
 function SphereScene({ people }: { people: Person[] }) {
-  const sortedPeople = useMemo(() => {
-    const owner = people.find((p) => p.tipo === "owner");
-    const anfitriones = people.filter((p) => p.tipo === "anfitrion");
-    const invitados = people.filter((p) => p.tipo === "invitado");
-    return [...(owner ? [owner] : []), ...anfitriones, ...invitados];
-  }, [people]);
-
-  // Radio que escala con la cantidad, pensado para esfera visible
+  // Calcular radius basado en cantidad, similar al ejemplo
   const radius = useMemo(() => {
-    const count = sortedPeople.length;
-    // Para pocas palabras: esfera pequeña pero visible
-    if (count === 1) return 8;
-    if (count === 2) return 10;
-    if (count === 3) return 12;
-    if (count <= 5) return 14;
-    if (count <= 8) return 16;
-    if (count <= 10) return 18;
-    if (count <= 15) return 19;
-    return 20; // Muchas palabras: tamaño completo
-  }, [sortedPeople.length]);
-
-  // Distancia de cámara optimizada para ver bien la esfera
-  const cameraDistance = useMemo(() => {
-    const count = sortedPeople.length;
-    // Para pocas palabras: más cerca para verlas bien
-    if (count === 1) return radius * 2.5;
-    if (count <= 3) return radius * 2.2;
-    if (count <= 5) return radius * 2.0;
-    // Para muchas palabras: distancia estándar
-    return radius * 1.75;
-  }, [radius, sortedPeople.length]);
+    const count = people.length;
+    if (count === 0) return 20;
+    if (count <= 4) return 15;
+    if (count <= 16) return 20;
+    if (count <= 36) return 25;
+    return 30;
+  }, [people.length]);
 
   return (
-    <Canvas
-      dpr={[1, 2]}
-      camera={{ position: [0, 0, cameraDistance], fov: 90 }}
-      gl={{ antialias: true }}
-      style={{ width: '100%', height: '100%', background: "#202025" }}
-    >
+    <Canvas dpr={[1, 2]} camera={{ position: [0, 0, 35], fov: 90 }}>
       <fog attach="fog" args={['#202025', 0, 80]} />
       <Suspense fallback={null}>
         <group rotation={[10, 10.5, 10]}>
-          <Cloud people={sortedPeople} radius={radius} />
+          <Cloud people={people} radius={radius} />
         </group>
       </Suspense>
       <TrackballControls />
@@ -317,7 +186,7 @@ function PeoplePageContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-white relative">
+      <div className="min-h-screen bg-[#202025] flex items-center justify-center text-white relative">
         <StarsBackground />
         <div className="text-xl relative z-10">Cargando invitados...</div>
       </div>
@@ -326,7 +195,7 @@ function PeoplePageContent() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-white relative">
+      <div className="min-h-screen bg-[#202025] flex items-center justify-center text-white relative">
         <StarsBackground />
         <div className="text-center space-y-4 relative z-10">
           <h2 className="text-2xl font-bold text-red-400">Error</h2>
@@ -338,7 +207,7 @@ function PeoplePageContent() {
 
   if (people.length === 0) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-white relative">
+      <div className="min-h-screen bg-[#202025] flex items-center justify-center text-white relative">
         <StarsBackground />
         <div className="text-center space-y-4 relative z-10">
           <h2 className="text-2xl font-bold">No tienes acceso</h2>
@@ -349,9 +218,21 @@ function PeoplePageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#202025] text-white relative">
+    <div className="min-h-screen text-white relative overflow-hidden" style={{ background: '#202025' }}>
+      {/* Animación de estrellas de fondo */}
+      <div className="fixed inset-0" style={{ zIndex: 1, pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', inset: 0 }}>
+          <StarsBackground />
+        </div>
+      </div>
 
-      <div className="absolute top-0 left-0 right-0 z-10 p-4 md:p-6">
+      {/* Canvas 3D con la esfera */}
+      <div className="fixed inset-0 top-20 md:top-24" style={{ zIndex: 2 }}>
+        <SphereScene people={people} />
+      </div>
+
+      {/* Header */}
+      <div className="absolute top-0 left-0 right-0 p-4 md:p-6" style={{ zIndex: 30 }}>
         <div className="max-w-7xl mx-auto space-y-4">
           <h1 className="text-lg md:text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
             {eventName}
@@ -375,10 +256,6 @@ function PeoplePageContent() {
           </div>
         </div>
       </div>
-
-      <div className="fixed inset-0 top-20 md:top-24 z-0 w-full h-full">
-        <SphereScene people={people} />
-      </div>
     </div>
   );
 }
@@ -386,7 +263,7 @@ function PeoplePageContent() {
 export default function PeoplePage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-black flex items-center justify-center text-white">
+      <div className="min-h-screen bg-[#202025] flex items-center justify-center text-white">
         <StarsBackground />
         <div className="text-xl relative z-10">Cargando...</div>
       </div>
