@@ -516,13 +516,6 @@ export default function EventPage() {
               <p className="text-2xl md:text-3xl font-bold">{eventData.nombre}</p>
             </div>
 
-            {eventData.descripcion && (
-              <div>
-                <p className="text-white/60 text-sm mb-1">Descripción</p>
-                <p className="text-white/80">{eventData.descripcion}</p>
-              </div>
-            )}
-
             <div>
               <p className="text-white/60 text-sm mb-1">Fecha y hora</p>
               <p className="text-xl font-semibold">
@@ -536,6 +529,13 @@ export default function EventPage() {
                 })}
               </p>
             </div>
+
+            {eventData.descripcion && (
+              <div>
+                <p className="text-white/60 text-sm mb-1">Descripción</p>
+                <p className="text-white/80">{eventData.descripcion}</p>
+              </div>
+            )}
 
             <div>
               <p className="text-white/60 text-sm mb-1">Lugar</p>

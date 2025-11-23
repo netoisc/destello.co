@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import dynamic from "next/dynamic";
+import Footer from "@/components/footer";
 
 const StarField3D = dynamic(
   () => import("@/components/starfield-3d"),
@@ -37,6 +38,7 @@ export default function RootLayout({
         <div className="relative z-10">
           {children}
         </div>
+        <Footer />
       </body>
     </html>
   );
