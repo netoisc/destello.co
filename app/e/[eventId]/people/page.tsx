@@ -125,6 +125,42 @@ function PeoplePageContent() {
   const [error, setError] = useState<string | null>(null);
   const [opcionesSeleccionadas, setOpcionesSeleccionadas] = useState<string[]>([]);
 
+  // Prevenir back button y verificar cookies al cargar
+  useEffect(() => {
+    if (!eventId) {
+      setLoading(false);
+      return;
+    }
+
+    // Verificar si tiene nombre (cookie de confirmación)
+    const allCookies = document.cookie.split("; ");
+    const nombreCookie = allCookies.find((row) => {
+      const trimmed = row.trim();
+      return trimmed.startsWith(`destello_nombre_${eventId}=`);
+    });
+    const ownerCookie = allCookies.find((row) => row.startsWith(`destello_owner_${eventId}`));
+    
+    // Si no es owner y no tiene nombre, redirigir al evento
+    if (!ownerCookie && !nombreCookie) {
+      window.location.href = `/e/${eventId}`;
+      return;
+    }
+
+    // Prevenir back button en /people
+    window.history.pushState(null, '', window.location.href);
+    
+    const handlePopState = () => {
+      // Si intenta ir atrás desde /people, redirigir al home
+      window.location.href = '/';
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [eventId]);
+
   useEffect(() => {
     if (!eventId) {
       setLoading(false);
@@ -137,12 +173,16 @@ function PeoplePageContent() {
       try {
         const allCookies = document.cookie.split("; ");
         const ownerCookie = allCookies.find((row) => row.startsWith(`destello_owner_${eventId}`));
-        const responseCookie = allCookies.find((row) => row.startsWith(`destello_response_${eventId}`));
+        // Verificar cookie de nombre (indica que confirmó con nombre)
+        const nombreCookie = allCookies.find((row) => {
+          const trimmed = row.trim();
+          return trimmed.startsWith(`destello_nombre_${eventId}=`);
+        });
         
         const isOwner = !!ownerCookie;
-        const hasAccepted = responseCookie?.split("=")[1] === "yes";
+        const hasConfirmed = !!nombreCookie; // Si tiene nombre, significa que confirmó
         
-        if (!isOwner && !hasAccepted) {
+        if (!isOwner && !hasConfirmed) {
           if (!cancelled) {
             setPeople([]);
             setEventName("");

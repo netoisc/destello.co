@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { Input } from "@/components/ui/input";
+import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Clock } from "lucide-react";
 
@@ -14,33 +13,48 @@ interface TimePickerProps {
 
 export default function TimePicker({ value, onChange, label, className }: TimePickerProps) {
   const [showPicker, setShowPicker] = useState(false);
-  const [hours, setHours] = useState(parseInt(value.split(':')[0]) || 12);
-  const [minutes, setMinutes] = useState(parseInt(value.split(':')[1]) || 0);
+  
+  // Parse current value
+  const currentHours = parseInt(value.split(':')[0]) || 12;
+  const currentMinutes = parseInt(value.split(':')[1]) || 0;
+  
+  // Convert to 12-hour format for display
+  const displayHour = currentHours === 0 ? 12 : currentHours > 12 ? currentHours - 12 : currentHours;
+  const ampm = currentHours < 12 ? 'AM' : 'PM';
+  const displayMinutes = currentMinutes === 30 ? '30' : '00';
 
-  const updateTime = (h: number, m: number) => {
-    const formattedHours = h.toString().padStart(2, '0');
-    const formattedMinutes = m.toString().padStart(2, '0');
+  const updateTime = (hour12: number, isPM: boolean, minutes: number) => {
+    // Convert 12-hour to 24-hour format
+    let hour24 = hour12;
+    if (isPM && hour12 !== 12) {
+      hour24 = hour12 + 12;
+    } else if (!isPM && hour12 === 12) {
+      hour24 = 0;
+    }
+    
+    const formattedHours = hour24.toString().padStart(2, '0');
+    const formattedMinutes = minutes.toString().padStart(2, '0');
     const timeString = `${formattedHours}:${formattedMinutes}`;
     onChange(timeString);
-    setHours(h);
-    setMinutes(m);
   };
 
-  const handleHourChange = (hour: number) => {
-    if (hour >= 0 && hour < 24) {
-      updateTime(hour, minutes);
-    }
+  const handleHourChange = (hour12: number) => {
+    const isPM = ampm === 'PM';
+    updateTime(hour12, isPM, currentMinutes);
   };
 
-  const handleMinuteChange = (minute: number) => {
-    if (minute >= 0 && minute < 60) {
-      updateTime(hours, minute);
-    }
+  const handleMinuteChange = (minutes: number) => {
+    const isPM = ampm === 'PM';
+    updateTime(displayHour, isPM, minutes);
   };
 
-  // Format hours for 12-hour display
-  const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
-  const ampm = hours < 12 ? 'AM' : 'PM';
+  const toggleAMPM = () => {
+    const newIsPM = ampm === 'AM';
+    updateTime(displayHour, newIsPM, currentMinutes);
+  };
+
+  // Format display value
+  const displayValue = `${displayHour}:${displayMinutes} ${ampm}`;
 
   return (
     <div className={`space-y-2 ${className}`}>
@@ -54,7 +68,7 @@ export default function TimePicker({ value, onChange, label, className }: TimePi
           <div className="flex items-center gap-3">
             <Clock className="h-5 w-5 text-purple-400" />
             <span className="text-lg font-medium">
-              {value || "Selecciona hora"}
+              {displayValue || "Selecciona hora"}
             </span>
           </div>
           <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -64,71 +78,216 @@ export default function TimePicker({ value, onChange, label, className }: TimePi
 
         {showPicker && (
           <>
+            {/* Backdrop */}
             <div
-              className="fixed inset-0 z-40 bg-black/50"
+              className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
               onClick={() => setShowPicker(false)}
             />
-            <div className="fixed bottom-0 left-0 right-0 md:absolute md:bottom-auto md:top-full md:left-0 md:right-0 md:mt-2 z-50 bg-gradient-to-b from-purple-950/95 to-black/95 backdrop-blur-xl border-t md:border border-purple-500/30 rounded-t-3xl md:rounded-2xl p-6 md:p-6 shadow-2xl max-h-[70vh] md:max-h-none">
-              <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6">
-                {/* Hours selector */}
-                <div className="flex flex-col items-center gap-2 w-full md:w-auto">
-                  <Label className="text-xs text-gray-400 mb-2">Hora</Label>
-                  <div className="flex flex-col gap-1.5 max-h-[200px] md:max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500/50 scrollbar-track-transparent px-2">
-                    {Array.from({ length: 24 }, (_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => handleHourChange(i)}
-                        className={`w-14 md:w-12 h-12 md:h-10 rounded-lg text-base md:text-sm font-medium transition-all touch-manipulation ${
-                          hours === i
-                            ? 'bg-purple-500 text-white scale-110'
-                            : 'text-gray-300 hover:bg-purple-500/20 hover:text-purple-300 active:bg-purple-500/30'
-                        }`}
-                      >
-                        {i.toString().padStart(2, '0')}
-                      </button>
-                    ))}
+            {/* Mobile: Bottom Sheet | Desktop: Centered Modal */}
+            <div className="fixed bottom-0 left-0 right-0 md:fixed md:inset-0 md:flex md:items-center md:justify-center z-50">
+              <div 
+                className="w-full md:w-auto md:max-w-md bg-black/95 backdrop-blur-xl border-t md:border border-white/10 rounded-t-2xl md:rounded-2xl shadow-2xl md:shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Mobile Bottom Sheet */}
+                <div className="md:hidden p-6 space-y-6">
+                  {/* Drag handle */}
+                  <div className="flex justify-center pt-2 pb-4">
+                    <div className="w-12 h-1 bg-white/20 rounded-full" />
                   </div>
-                </div>
+                  
+                  <div className="flex items-center justify-between gap-4">
+                    {/* Hours grid */}
+                    <div className="flex-1">
+                      <Label className="text-xs text-gray-400 uppercase tracking-wider mb-3 block">Hora</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {Array.from({ length: 12 }, (_, i) => {
+                          const hour12 = i + 1;
+                          const isSelected = displayHour === hour12;
+                          return (
+                            <button
+                              key={hour12}
+                              type="button"
+                              onClick={() => handleHourChange(hour12)}
+                              className={`h-12 rounded-lg text-sm font-semibold transition-all ${
+                                isSelected
+                                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                  : 'bg-white/5 text-gray-300 hover:bg-purple-500/20'
+                              }`}
+                            >
+                              {hour12}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                <span className="text-3xl md:text-2xl font-bold text-purple-400 hidden md:block">:</span>
+                    {/* Minutes + AM/PM */}
+                    <div className="flex flex-col gap-4">
+                      <div>
+                        <Label className="text-xs text-gray-400 uppercase tracking-wider mb-2 block">Min</Label>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleMinuteChange(0)}
+                            className={`w-16 h-10 rounded-lg text-sm font-semibold transition-all ${
+                              currentMinutes === 0
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                : 'bg-white/5 text-gray-300 hover:bg-purple-500/20'
+                            }`}
+                          >
+                            00
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMinuteChange(30)}
+                            className={`w-16 h-10 rounded-lg text-sm font-semibold transition-all ${
+                              currentMinutes === 30
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                : 'bg-white/5 text-gray-300 hover:bg-purple-500/20'
+                            }`}
+                          >
+                            30
+                          </button>
+                        </div>
+                      </div>
 
-                {/* Minutes selector */}
-                <div className="flex flex-col items-center gap-2 w-full md:w-auto">
-                  <Label className="text-xs text-gray-400 mb-2">Minuto</Label>
-                  <div className="flex flex-col gap-1.5 max-h-[200px] md:max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500/50 scrollbar-track-transparent px-2">
-                    {Array.from({ length: 60 }, (_, i) => i).filter((m) => m % 5 === 0).map((minute) => (
-                      <button
-                        key={minute}
-                        type="button"
-                        onClick={() => handleMinuteChange(minute)}
-                        className={`w-14 md:w-12 h-12 md:h-10 rounded-lg text-base md:text-sm font-medium transition-all touch-manipulation ${
-                          minutes === minute
-                            ? 'bg-purple-500 text-white scale-110'
-                            : 'text-gray-300 hover:bg-purple-500/20 hover:text-purple-300 active:bg-purple-500/30'
-                        }`}
-                      >
-                        {minute.toString().padStart(2, '0')}
-                      </button>
-                    ))}
+                      <div>
+                        <Label className="text-xs text-gray-400 uppercase tracking-wider mb-2 block">Formato</Label>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleAMPM()}
+                            className={`w-16 h-10 rounded-lg text-sm font-semibold transition-all ${
+                              ampm === 'AM'
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                : 'bg-white/5 text-gray-300 hover:bg-purple-500/20'
+                            }`}
+                          >
+                            AM
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleAMPM()}
+                            className={`w-16 h-10 rounded-lg text-sm font-semibold transition-all ${
+                              ampm === 'PM'
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                : 'bg-white/5 text-gray-300 hover:bg-purple-500/20'
+                            }`}
+                          >
+                            PM
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                {/* Format display and button */}
-                <div className="flex flex-col md:flex-row items-center gap-3 md:gap-2 w-full md:w-auto md:ml-4 md:pl-4 md:border-l md:border-white/10 pt-4 md:pt-0 border-t md:border-t-0 border-white/10">
-                  <div className="flex flex-col items-center gap-1">
-                    <Label className="text-xs text-gray-400">Formato</Label>
-                    <span className="text-lg md:text-base font-medium text-purple-300">
-                      {displayHour}:{minutes.toString().padStart(2, '0')} {ampm}
-                    </span>
-                  </div>
                   <button
                     type="button"
                     onClick={() => setShowPicker(false)}
-                    className="w-full md:w-auto px-6 py-3 md:px-4 md:py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl md:rounded-lg text-base md:text-sm font-medium transition-all touch-manipulation"
+                    className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg text-sm font-medium transition-all"
                   >
                     Aceptar
                   </button>
+                </div>
+
+                {/* Desktop Modal */}
+                <div className="hidden md:block p-6">
+                  <div className="flex items-start gap-6">
+                    {/* Hours */}
+                    <div className="flex-1">
+                      <Label className="text-xs text-gray-400 uppercase tracking-wider mb-3 block">Hora</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {Array.from({ length: 12 }, (_, i) => {
+                          const hour12 = i + 1;
+                          const isSelected = displayHour === hour12;
+                          return (
+                            <button
+                              key={hour12}
+                              type="button"
+                              onClick={() => handleHourChange(hour12)}
+                              className={`h-10 rounded-lg text-sm font-semibold transition-all ${
+                                isSelected
+                                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                  : 'bg-white/5 text-gray-300 hover:bg-purple-500/20'
+                              }`}
+                            >
+                              {hour12}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Minutes + AM/PM */}
+                    <div className="flex gap-4">
+                      <div>
+                        <Label className="text-xs text-gray-400 uppercase tracking-wider mb-3 block">Min</Label>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleMinuteChange(0)}
+                            className={`w-14 h-10 rounded-lg text-sm font-semibold transition-all ${
+                              currentMinutes === 0
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                : 'bg-white/5 text-gray-300 hover:bg-purple-500/20'
+                            }`}
+                          >
+                            00
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMinuteChange(30)}
+                            className={`w-14 h-10 rounded-lg text-sm font-semibold transition-all ${
+                              currentMinutes === 30
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                : 'bg-white/5 text-gray-300 hover:bg-purple-500/20'
+                            }`}
+                          >
+                            30
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label className="text-xs text-gray-400 uppercase tracking-wider mb-3 block">Formato</Label>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleAMPM()}
+                            className={`w-14 h-10 rounded-lg text-sm font-semibold transition-all ${
+                              ampm === 'AM'
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                : 'bg-white/5 text-gray-300 hover:bg-purple-500/20'
+                            }`}
+                          >
+                            AM
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleAMPM()}
+                            className={`w-14 h-10 rounded-lg text-sm font-semibold transition-all ${
+                              ampm === 'PM'
+                                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                : 'bg-white/5 text-gray-300 hover:bg-purple-500/20'
+                            }`}
+                          >
+                            PM
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={() => setShowPicker(false)}
+                          className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg text-sm font-medium transition-all"
+                        >
+                          OK
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

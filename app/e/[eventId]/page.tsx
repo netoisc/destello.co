@@ -237,61 +237,51 @@ export default function EventPage() {
         return;
       }
       
-      // Verificar si ya respondió
-      const responseCookie = allCookies.find((row) => row.startsWith(`destello_response_${eventId}`));
-      if (responseCookie) {
-        const response = responseCookie.split("=")[1];
+      // Verificar si ya confirmó CON NOMBRE (la cookie de nombre es la que importa)
+      const nombreCookie = allCookies.find((row) => {
+        const trimmed = row.trim();
+        return trimmed.startsWith(`destello_nombre_${eventId}=`);
+      });
+      
+      if (nombreCookie) {
+        // Si tiene nombre guardado, significa que ya confirmó completamente
+        // Decodificar el nombre en caso de que tenga caracteres especiales
+        const nombreValue = decodeURIComponent(nombreCookie.split("=").slice(1).join("="));
+        setNombreInvitado(nombreValue);
         setHaRespondido(true);
-        setRespuesta(response as "yes" | "no");
+        setRespuesta("yes");
         
-        if (response === "yes") {
-          // Si ya aceptó y tiene nombre, verificar si ya continuó
-          const nombreCookie = allCookies.find((row) => row.startsWith(`destello_nombre_${eventId}`));
-          
-          if (nombreCookie) {
-            // Ya aceptó y tiene nombre guardado
-            const nombreValue = nombreCookie.split("=")[1];
-            setNombreInvitado(nombreValue);
-            
-            // Verificar si ya presionó Continuar (si tiene cookie de continuar)
-            const continuadoCookie = allCookies.find((row) => row.startsWith(`destello_continuado_${eventId}`));
-            if (continuadoCookie) {
-              setHaContinuado(true);
-              // Si ya continuó, redirigir a /people
-              router.push(`/e/${eventId}/people`);
-              return;
-            }
-            
-            // Si no ha continuado pero tiene nombre, mostrar sección de nombre
-            // (ya tiene currentSection = 4 más abajo)
-          }
-          
-          // Si aceptó pero no tiene nombre, ir a sección de nombre
-          setCurrentSection(4);
-        } else {
-          setCurrentSection(5); // Ir a animación de vacío
-        }
+        // Si ya confirmó con nombre, redirigir inmediatamente a /people
+        // Usar window.location para forzar recarga completa y asegurar cookies
+        window.location.href = `/e/${eventId}/people`;
+        return;
       }
+      
+      // Si NO tiene nombre, NO guardar ningún estado de respuesta anterior
+      // Esto permite que vea todo el flujo como si fuera primera vez
+      // incluso si anteriormente aceptó pero no puso nombre
     };
     
     // Verificar cookies inmediatamente
     checkCookies();
   }, [eventId, router]);
 
-  // Prevenir back button cuando el invitado ya confirmó
+  // Prevenir back button cuando el invitado ya confirmó CON NOMBRE
   useEffect(() => {
-    if (!eventId) return;
+    if (!eventId || isOwner) return;
     
-    // Verificar si ya respondió (aceptó o rechazó) o si ya continuó
+    // Verificar si ya confirmó CON NOMBRE (la cookie de nombre indica confirmación completa)
     const checkIfConfirmed = () => {
       if (typeof window === 'undefined') return false;
       const allCookies = document.cookie.split('; ');
-      const responseCookie = allCookies.find((row) => row.startsWith(`destello_response_${eventId}`));
-      const continuadoCookie = allCookies.find((row) => row.startsWith(`destello_continuado_${eventId}`));
-      return !!responseCookie || !!continuadoCookie;
+      const nombreCookie = allCookies.find((row) => {
+        const trimmed = row.trim();
+        return trimmed.startsWith(`destello_nombre_${eventId}=`);
+      });
+      return !!nombreCookie;
     };
     
-    const isConfirmed = haRespondido || checkIfConfirmed();
+    const isConfirmed = checkIfConfirmed();
     
     if (isConfirmed && !isOwner) {
       // Agregar una entrada al historial para interceptar el back
@@ -356,24 +346,18 @@ export default function EventPage() {
       const handlePopState = (e: PopStateEvent) => {
         // Verificar cookies actuales para saber a dónde redirigir
         const allCookies = document.cookie.split('; ');
-        const responseCookie = allCookies.find((row) => row.startsWith(`destello_response_${eventId}`));
-        const continuadoCookie = allCookies.find((row) => row.startsWith(`destello_continuado_${eventId}`));
+        const nombreCookie = allCookies.find((row) => {
+          const trimmed = row.trim();
+          return trimmed.startsWith(`destello_nombre_${eventId}=`);
+        });
         
-        if (responseCookie) {
-          const response = responseCookie.split("=")[1];
-          
-          if (response === "yes" && continuadoCookie) {
-            // Si aceptó y ya continuó, redirigir a /people
-            e.preventDefault();
-            router.push(`/e/${eventId}/people`);
-          } else {
-            // Si aceptó pero no continuó, o si rechazó, quedarse en la página actual
-            // Volver a agregar la entrada al historial para prevenir navegación
-            window.history.pushState(null, '', window.location.href);
-          }
+        if (nombreCookie) {
+          // Si ya confirmó con nombre, redirigir a /people
+          e.preventDefault();
+          window.location.href = `/e/${eventId}/people`;
         } else {
-          // Si no hay cookie de respuesta, redirigir al home
-          router.push('/');
+          // Si no tiene nombre, permitir navegación normal (ver flujo completo)
+          // No prevenir el back
         }
       };
       
@@ -390,9 +374,7 @@ export default function EventPage() {
   const handleAccept = async () => {
     setRespuesta("yes");
     setHaRespondido(true);
-    // Guardar en cookie para control de acceso
-    document.cookie = `destello_response_${eventId}=yes; path=/; max-age=31536000; SameSite=Lax`;
-    // NO guardar en BD todavía (solo cuando proporcione nombre)
+    // NO guardar cookie todavía - solo cuando confirme con nombre
     // Animación de lluvia de estrellas
     setCurrentSection(4);
     
@@ -446,21 +428,30 @@ export default function EventPage() {
         return;
       }
 
-      // Guardar en cookie
-      document.cookie = `destello_nombre_${eventId}=${nombreInvitado.trim()}; path=/; max-age=31536000; SameSite=Lax`;
-      document.cookie = `destello_continuado_${eventId}=true; path=/; max-age=31536000; SameSite=Lax`;
+      // Guardar en cookies SOLO cuando confirma con nombre
+      // Esta es la única forma de saber que realmente confirmó
+      // Safari requiere formato específico de cookies
+      const cookieOptions = `path=/; max-age=31536000; SameSite=Lax; Secure=${window.location.protocol === 'https:' ? 'true' : 'false'}`;
+      
+      document.cookie = `destello_response_${eventId}=yes; ${cookieOptions}`;
+      document.cookie = `destello_nombre_${eventId}=${encodeURIComponent(nombreInvitado.trim())}; ${cookieOptions}`;
+      document.cookie = `destello_continuado_${eventId}=true; ${cookieOptions}`;
+      
+      // Forzar actualización del navegador para que Safari guarde las cookies
+      if (typeof window !== 'undefined') {
+        // Pequeño delay para asegurar que las cookies se guarden antes de redirigir
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
       
       // Actualizar contador de confirmados
       setConfirmados((prev) => prev + 1);
       
-      // Marcar que presionó Continuar
+      // Marcar que presionó Confirmar
       setHaContinuado(true);
       
-      // Scroll automático hacia la sección "Nos vemos"
-      setTimeout(() => {
-        sectionRefs.current[6]?.scrollIntoView({ behavior: "smooth", block: "start" });
-        setCurrentSection(6);
-      }, 300);
+      // Redirigir inmediatamente a /people después de confirmar
+      // Usar window.location para forzar recarga completa y asegurar que Safari lea las cookies
+      window.location.href = `/e/${eventId}/people`;
     }
   };
 
@@ -1118,7 +1109,7 @@ export default function EventPage() {
                 disabled={!nombreInvitado.trim()}
                 className="w-full text-lg py-6 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Continuar
+                Confirmar
               </Button>
             </div>
 
