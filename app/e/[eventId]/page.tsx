@@ -461,8 +461,9 @@ export default function EventPage() {
                 <audio 
                   controls 
                   className="w-full max-w-md" 
-                  preload="auto"
+                  preload="metadata"
                   playsInline
+                  src={eventData.audio_url}
                   onLoadedMetadata={(e) => {
                     const audio = e.target as HTMLAudioElement;
                     console.log("Audio metadata loaded:", {
@@ -490,13 +491,6 @@ export default function EventPage() {
                     console.log("Audio ended");
                   }}
                 >
-                  {/* Priorizar formatos compatibles: MP4/M4A primero para Safari iOS */}
-                  <source src={eventData.audio_url} type="audio/mp4" />
-                  <source src={eventData.audio_url} type="audio/m4a" />
-                  <source src={eventData.audio_url} type="audio/webm" />
-                  <source src={eventData.audio_url} type="audio/mpeg" />
-                  <source src={eventData.audio_url} type="audio/ogg" />
-                  <source src={eventData.audio_url} type="audio/wav" />
                   Tu navegador no soporta el elemento de audio.
                 </audio>
               </div>
@@ -766,7 +760,9 @@ export default function EventPage() {
             <audio 
               controls 
               className="w-full" 
-              preload="auto"
+              preload="metadata"
+              playsInline
+              src={eventData.audio_url}
               onLoadedMetadata={(e) => {
                 const audio = e.target as HTMLAudioElement;
                 console.log("Audio metadata loaded:", {
@@ -794,12 +790,6 @@ export default function EventPage() {
                 console.log("Audio ended");
               }}
             >
-              {/* Priorizar formatos compatibles con Safari */}
-              <source src={eventData.audio_url} type="audio/mp4" />
-              <source src={eventData.audio_url} type="audio/mpeg" />
-              <source src={eventData.audio_url} type="audio/webm" />
-              <source src={eventData.audio_url} type="audio/ogg" />
-              <source src={eventData.audio_url} type="audio/wav" />
               Tu navegador no soporta el elemento de audio.
             </audio>
             
