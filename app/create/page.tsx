@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +60,36 @@ export default function CreatePage() {
   const [toastMessage, setToastMessage] = useState<string>("");
   const [toastType, setToastType] = useState<"success" | "error">("success");
   const [showToast, setShowToast] = useState(false);
+
+  // Prevenir back button cuando el evento ya fue creado o existe cookie de owner
+  useEffect(() => {
+    // Verificar si existe cookie de owner (indica que el evento ya fue creado)
+    const checkOwnerCookie = () => {
+      if (typeof window === 'undefined') return false;
+      const allCookies = document.cookie.split('; ');
+      // Buscar cualquier cookie que indique que es owner de algún evento
+      return allCookies.some(cookie => cookie.startsWith('destello_owner_'));
+    };
+    
+    const shouldPreventBack = eventId || checkOwnerCookie();
+    
+    if (shouldPreventBack) {
+      // Agregar una entrada al historial para interceptar el back
+      window.history.pushState(null, '', window.location.href);
+      
+      const handlePopState = (e: PopStateEvent) => {
+        // Si se detecta back, redirigir al home inmediatamente
+        e.preventDefault();
+        router.push('/');
+      };
+      
+      window.addEventListener('popstate', handlePopState);
+      
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [eventId, router]);
 
   const updateFormData = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -711,35 +741,6 @@ export default function CreatePage() {
                         </div>
                       </div>
                     </div>
-                    <div>
-                      <Label className="text-base">NIP (guárdalo, no se puede recuperar)</Label>
-                      <div className="flex gap-2 mt-2">
-                        <Input value={ownerNip} readOnly className="font-mono text-2xl text-center font-bold" />
-                        <Button
-                          onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(ownerNip);
-                              setToastMessage("NIP copiado");
-                              setToastType("success");
-                              setShowToast(true);
-                            } catch (err) {
-                              setToastMessage("Error al copiar");
-                              setToastType("error");
-                              setShowToast(true);
-                            }
-                          }}
-                          variant="outline"
-                          className="w-full sm:w-auto"
-                        >
-                          <Copy className="w-4 h-4 sm:mr-2" />
-                          <span className="hidden sm:inline">Copiar</span>
-                          <span className="sm:hidden">Copiar NIP</span>
-                        </Button>
-                      </div>
-                      <p className="text-xs text-yellow-400/80 mt-2">
-                        ⚠️ Guarda este NIP. Te permitirá modificar el evento más tarde.
-                      </p>
-                    </div>
                   </motion.div>
                 )}
               </motion.div>
@@ -748,30 +749,47 @@ export default function CreatePage() {
         </div>
 
         {/* Navigation */}
-        <div className="flex justify-between gap-4 mt-8 sticky bottom-4 z-20">
-          <Button
-            variant="outline"
-            onClick={handleBack}
-            disabled={step === 5 && !!eventId}
-            className="rounded-xl border-white/20 text-gray-300 hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            ← {step === 1 ? "Volver" : "Anterior"}
-          </Button>
-          <Button
-            onClick={handleNext}
-            disabled={!canProceed() || loading || (step === 5 && !!eventId)}
-            className="rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white border-0 shadow-lg shadow-purple-500/30 disabled:opacity-50"
-          >
-            {loading
-              ? "Creando..."
-              : step === 5 && eventId
-              ? "Evento creado ✓"
-              : step === 5
-              ? "Finalizar"
-              : step === 4
-              ? "Continuar"
-              : "Siguiente"}
-          </Button>
+        <div className={`flex ${step === 5 && eventId ? 'justify-center gap-4' : 'justify-between'} gap-4 mt-8 sticky bottom-4 z-20`}>
+          {!(step === 5 && eventId) && (
+            <Button
+              variant="outline"
+              onClick={handleBack}
+              className="rounded-xl border-white/20 text-gray-300 hover:bg-white/5"
+            >
+              ← {step === 1 ? "Volver" : "Anterior"}
+            </Button>
+          )}
+          {step === 5 && eventId ? (
+            <div className="flex flex-col sm:flex-row gap-3 w-full">
+              <Button
+                onClick={() => router.push('/')}
+                className="flex-1 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white border-0 shadow-lg shadow-purple-500/30"
+              >
+                Inicio
+              </Button>
+              <Button
+                onClick={() => router.push(`/e/${eventId}/people`)}
+                variant="outline"
+                className="flex-1 rounded-xl border-purple-500/50 text-purple-300 hover:bg-purple-500/20"
+              >
+                Ver esfera de invitados
+              </Button>
+            </div>
+          ) : (
+            <Button
+              onClick={handleNext}
+              disabled={!canProceed() || loading}
+              className="rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white border-0 shadow-lg shadow-purple-500/30 disabled:opacity-50"
+            >
+              {loading
+                ? "Creando..."
+                : step === 5
+                ? "Finalizar"
+                : step === 4
+                ? "Continuar"
+                : "Siguiente"}
+            </Button>
+          )}
         </div>
       </div>
       

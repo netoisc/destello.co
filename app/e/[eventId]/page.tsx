@@ -662,7 +662,7 @@ export default function EventPage() {
             transition={{ delay: 0.5, duration: 0.8 }}
             className="text-white/70 text-base md:text-lg mb-6"
           >
-            Si puedes ver esto es porque alguien te ha invitado a:
+            Si puedes ver esto es porque alguien de los anfitriones te ha invitado a:
           </motion.p>
 
           {/* Destello alrededor del nombre */}
@@ -945,8 +945,8 @@ export default function EventPage() {
                 className="space-y-4"
               >
                 <div className="text-center space-y-2">
-                  <h3 className="text-lg font-medium">¿quieres llevar algo?</h3>
-                  <p className="text-white/70 text-sm">aquí tienes algunas opciones, pero NTP esto solo es opcional y la idea al final es que la pasemos bien:</p>
+                  <h3 className="text-lg font-medium">¿Quieres llevar algo?</h3>
+                  <p className="text-white/70 text-sm">Aquí tienes algunas opciones, pero NTP esto solo es opcional y la idea al final es que la pasemos bien:</p>
                 </div>
                 <div className="flex flex-wrap gap-3 justify-center">
                   {eventData.opciones_traer.map((opcion) => (
