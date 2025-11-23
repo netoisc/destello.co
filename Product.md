@@ -11,42 +11,11 @@ Stack:
 
 Estética: universo negro profundo, partículas lentas, Sol tenue, tipografía Satoshi/Inter, todo español, mobile-first.
 
-Funcionalidades y UX exactas:
-
-1. /create → slider de 4 pasos (horizontal desktop / scroll vertical móvil con snap):
-   Paso 1 → Nombre, descripción, audio
-   Paso 2 → Límite total + cuántos Mercurio (0–15)
-   Paso 3 → Fecha/hora, lugar, lista opcional “qué traer”
-   Paso 4 → “Tu sistema solar listo” + los dos enlaces cósmicos + botón “Ver esfera”
-
-2. Rutas:
-   - /e/[eventId]/mercurio → co-anfitriones (sin código)
-   - /e/[eventId]/venus → invitados normales
-   - /e/[eventId]/venus/[codigo6] → invitados de un Mercurio
-
-3. Al abrir Mercurio o Venus:
-   - Pantalla completa negra → destello central → texto:
-     “Hola, alguien te invitó a: ✦ NOMBRE EVENTO ✦” (brillo pulsante)
-   - Campo código (solo si es Venus con código)
-   - Al validar → desliza hacia abajo automático → revela When / Where / Qué traer
-   - Botones grandes: [ME APUNTO]  [NO PUEDO]
-   - ME APUNTO → ruleta 3D opcional → Big Bang + countdown 10 s → autodestrucción total
-
-4. /e/[eventId]/sphere → solo Sol y Mercurio → esfera 3D viva (Mercurio cerca y brillante, Venus en órbita exterior)
-
-5. 24 h después del evento → todo borrado automáticamente
-
-6. Ruleta: nebulosa giratoria, opciones desaparecen como cometa
-
-
-
-
-
 Nombre: Destello
 Tagline: Invitaciones que brillan y desaparecen.
 
 
-Funcionalidad:
+Funcionalidades:
 
 Se permiten crear eventos a cualquier persona, sin registro previo. 
 
@@ -153,7 +122,9 @@ Se le muestra un mensaje muy relajado y amigable, algo como:
 
 Se anima la página, tipo lluvia de estrellas, o se ilumina toda la pagina y pasa a la siguiente sección
 
-Si no Acepta la invitación, sucede una animación de "vaciado" o de vacio de estrellas, se desvanecen. Como si se perdiera la invitación en el universo y se agradece 
+Si NO Acepta la invitación, sucede una animación de "vaciado" o de vacio de estrellas, se desvanecen. Como si se perdiera la invitación en el universo y se agradece.
+
+No se debe almacenar respuestas de invitados quienes no aceptaron.
 
 > Cualquiera que sea la decision del invitado, se alamacena en el cache o cookies del usuario la url del evento para saber si ya fue usado y si entra pero no había aceptado, mostrar la animación de espacio vacío 
 
@@ -187,3 +158,7 @@ Al final de la pagina del evento (usando el link general), mostrar:
 ## Esfera animada
 
 El dueño del evento y los invitados que tengan el link y hayan aceptado (se sabe con la cookie), pueden ver una esfera animada con todos los nombres de las personas que asistirán
+
+El link debe ser /e/<id>/people, pero se determina automáicamente si está uusando el link por segunda vez con la cookie y si aceptá el invite, o si tiene el link completo 
+
+La esfera debe incluir incialmente al creador, y a los anfitriones.

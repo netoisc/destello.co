@@ -9,6 +9,7 @@ declare global {
       directionalLight: any
       spotLight: any
       group: any
+      group: any
       primitive: any
       mesh: any
       sphereGeometry: any

@@ -12,6 +12,9 @@ import AudioRecorder from "@/components/audio-recorder";
 import FormBackground from "@/components/form-background";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
+import { Toast } from "@/components/ui/toast";
+import { Share2, Copy } from "lucide-react";
 
 type FormData = {
   tuNombre: string;
@@ -40,8 +43,12 @@ export default function CreatePage() {
     audioBlob: null,
     limiteTotal: 20,
     anfitriones: "",
-    fecha: new Date().toISOString().split('T')[0],
-    hora: "",
+    fecha: (() => {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return tomorrow.toISOString().split('T')[0];
+    })(),
+    hora: "12:00",
     lugar: "",
     agregarOpciones: false,
     opcionesTraer: [],
@@ -50,6 +57,9 @@ export default function CreatePage() {
   const [loading, setLoading] = useState(false);
   const [eventId, setEventId] = useState<string | null>(null);
   const [ownerNip, setOwnerNip] = useState<string>("");
+  const [toastMessage, setToastMessage] = useState<string>("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+  const [showToast, setShowToast] = useState(false);
 
   const updateFormData = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -98,15 +108,168 @@ export default function CreatePage() {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step === 5) {
-      // Generar eventId y NIP (solo UI, sin BD)
-      const newEventId = `sun-${Math.random().toString(36).substring(2, 11)}`;
-      const nip = Math.floor(1000 + Math.random() * 9000).toString();
-      setEventId(newEventId);
-      setOwnerNip(nip);
-      // Guardar en cookie que es owner
-      document.cookie = `destello_owner_${newEventId}=${nip}; path=/; max-age=31536000`;
+      if (!eventId) {
+        setLoading(true);
+        try {
+          // Generar eventId y NIP
+          const newEventId = `sun-${Math.random().toString(36).substring(2, 11)}`;
+          const nip = Math.floor(1000 + Math.random() * 9000).toString();
+          
+          // Calcular fecha/hora combinada
+          const fechaHora = new Date(`${formData.fecha}T${formData.hora}`);
+          
+          // Validar que la fecha sea válida y en el futuro
+          if (isNaN(fechaHora.getTime())) {
+            setToastMessage("La fecha y hora seleccionadas no son válidas. Por favor verifica.");
+            setToastType("error");
+            setShowToast(true);
+            setLoading(false);
+            return;
+          }
+          
+          // Verificar que la fecha esté al menos 1 día en el futuro
+          const mañana = new Date();
+          mañana.setDate(mañana.getDate() + 1);
+          mañana.setHours(0, 0, 0, 0); // Inicio del día siguiente
+          if (fechaHora <= mañana) {
+            setToastMessage("La fecha y hora del evento deben estar al menos 1 día en el futuro. Por favor selecciona una fecha posterior a mañana.");
+            setToastType("error");
+            setShowToast(true);
+            setLoading(false);
+            return;
+          }
+          
+          // Verificar que la fecha no sea más de 6 meses en el futuro
+          const seisMeses = new Date();
+          seisMeses.setMonth(seisMeses.getMonth() + 6);
+          if (fechaHora > seisMeses) {
+            setToastMessage("La fecha del evento no puede ser más de 6 meses en el futuro.");
+            setToastType("error");
+            setShowToast(true);
+            setLoading(false);
+            return;
+          }
+          
+          // Calcular expires_at (1 día después del evento)
+          const expiresAt = new Date(fechaHora);
+          expiresAt.setDate(expiresAt.getDate() + 1);
+          
+          // Subir audio a Storage si existe
+          let audioUrl = null;
+          if (formData.audioBlob) {
+            try {
+              // Determinar extensión y tipo MIME correcto para máxima compatibilidad
+              // Safari iOS: audio/mp4 o audio/m4a (preferir m4a para mejor compatibilidad)
+              // Android Chrome: audio/webm o audio/mp4
+              let extension = 'm4a'; // Usar m4a por defecto para mejor compatibilidad Safari iOS
+              let contentType = 'audio/mp4'; // m4a usa el mismo MIME type que mp4
+              
+              const blobType = formData.audioBlob.type.toLowerCase();
+              
+              if (blobType.includes('webm')) {
+                extension = 'webm';
+                contentType = 'audio/webm';
+              } else if (blobType.includes('m4a') || blobType.includes('mp4') || blobType.includes('aac')) {
+                // Safari iOS graba en mp4/m4a/aac - todos usan audio/mp4 MIME type
+                extension = 'm4a'; // Usar m4a para mejor compatibilidad
+                contentType = 'audio/mp4';
+              } else if (blobType.includes('mpeg')) {
+                extension = 'mp3';
+                contentType = 'audio/mpeg';
+              } else if (blobType.includes('wav')) {
+                extension = 'wav';
+                contentType = 'audio/wav';
+              } else if (blobType.includes('ogg')) {
+                extension = 'ogg';
+                contentType = 'audio/ogg';
+              }
+              
+              const audioFileName = `${newEventId}_audio.${extension}`;
+              const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('audio')
+                .upload(audioFileName, formData.audioBlob, {
+                  contentType: contentType,
+                  upsert: false,
+                  cacheControl: '3600',
+                });
+
+              if (uploadError) {
+                console.error("Error uploading audio:", uploadError);
+                // Continuar sin audio si falla la subida
+              } else if (uploadData) {
+                const { data: urlData } = supabase.storage
+                  .from('audio')
+                  .getPublicUrl(audioFileName);
+                audioUrl = urlData.publicUrl;
+              }
+            } catch (audioError) {
+              console.error("Error uploading audio:", audioError);
+              // Continuar sin audio si falla la subida
+            }
+          }
+
+          // Guardar evento en BD
+          const { error: eventError } = await supabase
+            .from("events")
+            .insert({
+              id: newEventId,
+              owner_nombre: formData.tuNombre,
+              nombre: formData.nombreEvento,
+              descripcion: formData.descripcion || null,
+              audio_url: audioUrl,
+              limite_total: formData.limiteTotal,
+              anfitriones: formData.anfitriones || null,
+              fecha: fechaHora.toISOString(),
+              lugar: formData.lugar,
+              opciones_traer: formData.opcionesTraer,
+              owner_nip: nip,
+              expires_at: expiresAt.toISOString(),
+            });
+
+          if (eventError) {
+            console.error("Error creating event:", eventError);
+            
+            // Mensaje más específico según el error
+            let errorMessage = "Error al crear el evento. Por favor intenta de nuevo.";
+            if (eventError.code === '23514' && eventError.message?.includes('valid_fecha')) {
+              errorMessage = "La fecha del evento debe estar en el futuro y no más de 6 meses desde ahora. Por favor verifica la fecha y hora.";
+            } else if (eventError.code === '23505') {
+              errorMessage = "Ya existe un evento con ese ID. Por favor intenta de nuevo.";
+            } else if (eventError.message) {
+              errorMessage = `Error: ${eventError.message}`;
+            }
+            
+            setToastMessage(errorMessage);
+            setToastType("error");
+            setShowToast(true);
+            setLoading(false);
+            return;
+          }
+
+          setEventId(newEventId);
+          setOwnerNip(nip);
+          
+          // Guardar en cookie que es owner (para control de acceso a /people)
+          document.cookie = `destello_owner_${newEventId}=${nip}; path=/; max-age=31536000; SameSite=Lax`;
+          
+          // Mostrar toast de éxito
+          setToastMessage("¡Evento creado exitosamente!");
+          setToastType("success");
+          setShowToast(true);
+          
+          // NO redirigir - dejar que el usuario vea y comparta el link
+        } catch (error: any) {
+          console.error("Error creating event:", error);
+          setToastMessage(error?.message || "Error al crear el evento. Por favor intenta de nuevo.");
+          setToastType("error");
+          setShowToast(true);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
     }
     if (step < 5) {
       setStep(step + 1);
@@ -133,10 +296,39 @@ export default function CreatePage() {
           >
             ← Volver
           </Link>
-          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+          <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-6">
             Crear Evento
           </h1>
-          <p className="text-white/60 mt-2">Paso {step} de 5</p>
+          
+          {/* Step Indicator Buttons */}
+          <div className="flex items-center justify-center gap-2 mb-4">
+            {[1, 2, 3, 4, 5].map((stepNum) => (
+              <button
+                key={stepNum}
+                type="button"
+                onClick={() => {
+                  // Solo permitir ir a pasos anteriores
+                  if (stepNum <= step) {
+                    setStep(stepNum);
+                  }
+                }}
+                disabled={stepNum > step}
+                className={`
+                  w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all
+                  ${
+                    stepNum === step
+                      ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50 scale-110"
+                      : stepNum < step
+                      ? "bg-purple-500/30 text-purple-300 border border-purple-500/50 hover:bg-purple-500/40 cursor-pointer"
+                      : "bg-white/10 text-white/40 border border-white/20 cursor-not-allowed opacity-50"
+                  }
+                `}
+              >
+                {stepNum}
+              </button>
+            ))}
+          </div>
+          <p className="text-white/60 text-center text-sm">Paso {step} de 5</p>
         </div>
 
         {/* Steps */}
@@ -460,22 +652,58 @@ export default function CreatePage() {
                   >
                     <div>
                       <Label className="text-base">Link del evento</Label>
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex flex-col sm:flex-row gap-2 mt-2">
                         <Input
                           value={`${typeof window !== 'undefined' ? window.location.origin : ''}/e/${eventId}`}
                           readOnly
-                          className="font-mono text-sm"
+                          className="font-mono text-xs sm:text-sm flex-1"
                         />
-                        <Button
-                          onClick={() => {
-                            navigator.clipboard.writeText(
-                              `${typeof window !== 'undefined' ? window.location.origin : ''}/e/${eventId}`
-                            );
-                            alert("¡Link copiado!");
-                          }}
-                        >
-                          Copiar
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={async () => {
+                              const eventUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/e/${eventId}`;
+                              try {
+                                await navigator.clipboard.writeText(eventUrl);
+                                setToastMessage("Link copiado");
+                                setToastType("success");
+                                setShowToast(true);
+                              } catch (err) {
+                                setToastMessage("Error al copiar");
+                                setToastType("error");
+                                setShowToast(true);
+                              }
+                            }}
+                            variant="outline"
+                            className="flex-1 sm:flex-none min-w-[100px]"
+                          >
+                            <Copy className="w-4 h-4 sm:mr-2" />
+                            <span className="hidden sm:inline">Copiar</span>
+                          </Button>
+                          {typeof window !== 'undefined' && navigator.share && (
+                            <Button
+                              onClick={async () => {
+                                const eventUrl = `${window.location.origin}/e/${eventId}`;
+                                try {
+                                  await navigator.share({
+                                    title: formData.nombreEvento,
+                                    text: `Hola, esta es una invitación\n\n${eventUrl}`,
+                                    url: eventUrl,
+                                  });
+                                } catch (err: any) {
+                                  if (err.name !== 'AbortError') {
+                                    setToastMessage("Error al compartir");
+                                    setToastType("error");
+                                    setShowToast(true);
+                                  }
+                                }
+                              }}
+                              className="flex-1 sm:flex-none bg-gradient-to-r from-purple-500 to-pink-500"
+                            >
+                              <Share2 className="w-4 h-4 sm:mr-2" />
+                              <span className="hidden sm:inline">Compartir</span>
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div>
@@ -483,12 +711,24 @@ export default function CreatePage() {
                       <div className="flex gap-2 mt-2">
                         <Input value={ownerNip} readOnly className="font-mono text-2xl text-center font-bold" />
                         <Button
-                          onClick={() => {
-                            navigator.clipboard.writeText(ownerNip);
-                            alert("¡NIP copiado!");
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(ownerNip);
+                              setToastMessage("NIP copiado");
+                              setToastType("success");
+                              setShowToast(true);
+                            } catch (err) {
+                              setToastMessage("Error al copiar");
+                              setToastType("error");
+                              setShowToast(true);
+                            }
                           }}
+                          variant="outline"
+                          className="w-full sm:w-auto"
                         >
-                          Copiar
+                          <Copy className="w-4 h-4 sm:mr-2" />
+                          <span className="hidden sm:inline">Copiar</span>
+                          <span className="sm:hidden">Copiar NIP</span>
                         </Button>
                       </div>
                       <p className="text-xs text-yellow-400/80 mt-2">
@@ -526,6 +766,14 @@ export default function CreatePage() {
           </Button>
         </div>
       </div>
+      
+      {/* Toast Notification */}
+      <Toast
+        message={toastMessage}
+        type={toastType}
+        isVisible={showToast}
+        onClose={() => setShowToast(false)}
+      />
     </div>
   );
 }

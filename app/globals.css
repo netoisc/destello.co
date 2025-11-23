@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes recording-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7), 0 0 20px rgba(239, 68, 68, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0), 0 0 30px rgba(239, 68, 68, 0.5);
+  }
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
@@ -74,6 +83,14 @@ All colors MUST be HSL.
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', 'Satoshi', system-ui, -apple-system, sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Nebula animations */
@@ -225,6 +242,12 @@ All colors MUST be HSL.
   }
 }
 
+/* Smooth snap scrolling - Mobile First */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Smooth snap scrolling on mobile */
 @supports (-webkit-overflow-scrolling: touch) {
   .snap-container {
@@ -234,6 +257,7 @@ All colors MUST be HSL.
   
   .snap-section {
     scroll-snap-align: start;
+    scroll-snap-stop: always;
   }
 }
 
@@ -241,6 +265,27 @@ All colors MUST be HSL.
 @media (min-width: 768px) {
   .snap-container {
     scroll-snap-type: x mandatory;
+  }
+}
+
+/* Enhanced scroll snap for better mobile UX */
+@supports (scroll-snap-type: y mandatory) {
+  .snap-y {
+    scroll-snap-type: y mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .snap-mandatory {
+    scroll-snap-type: y mandatory;
+  }
+  
+  .snap-start {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+  
+  .scroll-smooth {
+    scroll-behavior: smooth;
   }
 }
 

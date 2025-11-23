@@ -7,82 +7,196 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import CosmicEntry from "@/components/cosmic-entry";
+import { supabase } from "@/lib/supabase";
+import { ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Toast } from "@/components/ui/toast";
 
-// Mock data - en producción vendría de BD
-const mockEventData = {
-  nombre: "Fiesta de Cumpleaños",
-  descripcion: "Una celebración cósmica",
-  anfitriones: "Juan, María",
-  fecha: "2024-12-25",
-  hora: "20:00",
-  lugar: "Casa de Juan, Calle Principal 123",
-  tieneAudio: false,
-  opcionesTraer: ["Postres", "Bebidas", "Botana"],
-  confirmados: 5,
-};
+interface EventData {
+  nombre: string;
+  descripcion: string | null;
+  anfitriones: string | null;
+  fecha: string;
+  lugar: string;
+  audio_url: string | null;
+  opciones_traer: string[];
+}
 
 export default function EventPage() {
   const params = useParams();
+  const router = useRouter();
   const eventId = params.eventId as string;
   
-  const [showEntry, setShowEntry] = useState(true);
+  const [showEntry, setShowEntry] = useState(false); // Removed: cosmic entry animation is redundant
   const [currentSection, setCurrentSection] = useState(0);
+  const [eventData, setEventData] = useState<EventData | null>(null);
+  const [confirmados, setConfirmados] = useState(0);
   const [nombreInvitado, setNombreInvitado] = useState("");
   const [opcionesSeleccionadas, setOpcionesSeleccionadas] = useState<string[]>([]);
   const [haRespondido, setHaRespondido] = useState(false);
   const [respuesta, setRespuesta] = useState<"yes" | "no" | null>(null);
   const [showReaction, setShowReaction] = useState(false);
   const [reactionType, setReactionType] = useState<"applause" | "party" | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
+  const [ownerNip, setOwnerNip] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string>("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+  const [showToast, setShowToast] = useState(false);
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
 
-  // Verificar si ya respondió (cookie)
+  // Cargar evento desde BD
   useEffect(() => {
-    const cookieValue = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith(`destello_response_${eventId}`));
-    if (cookieValue) {
-      const response = cookieValue.split("=")[1];
-      setHaRespondido(true);
-      setRespuesta(response as "yes" | "no");
-      setShowEntry(false);
-      setCurrentSection(4); // Ir a sección de gracias
+    let cancelled = false;
+    
+    const loadEvent = async () => {
+      try {
+        // Cargar evento
+        const { data: event, error } = await supabase
+          .from("events")
+          .select("*")
+          .eq("id", eventId)
+          .single();
+
+        if (cancelled) return;
+
+        if (error || !event) {
+          console.error("Error loading event:", error);
+          if (!cancelled) {
+            setEventData(null);
+            setLoading(false);
+          }
+          return;
+        }
+
+        // Calcular confirmados (owner + anfitriones + invitados que aceptaron)
+        let count = 1; // Owner
+        if (event.anfitriones) {
+          count += event.anfitriones.split(",").filter((a: string) => a.trim()).length;
+        }
+        
+        const { count: acceptedCount } = await supabase
+          .from("guests")
+          .select("*", { count: "exact", head: true })
+          .eq("event_id", eventId)
+          .eq("response", "yes");
+
+        if (!cancelled) {
+          setConfirmados(count + (acceptedCount || 0));
+
+          // Formatear fecha/hora
+          const fechaHora = new Date(event.fecha);
+          setEventData({
+            nombre: event.nombre,
+            descripcion: event.descripcion,
+            anfitriones: event.anfitriones,
+            fecha: fechaHora.toISOString().split('T')[0],
+            lugar: event.lugar,
+            audio_url: event.audio_url,
+            opciones_traer: event.opciones_traer || [],
+          });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Error loading event:", error);
+          setEventData(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    if (eventId) {
+      loadEvent();
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [eventId]);
 
-  // Auto-scroll por secciones después del entry
+  // Verificar cookies cuando el componente se monta y cuando eventData cambia
   useEffect(() => {
-    if (!showEntry && currentSection < 4) {
-      const timer = setTimeout(() => {
-        sectionRefs.current[currentSection]?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-        if (currentSection < 3) {
-          setCurrentSection(currentSection + 1);
+    if (!eventId) return;
+    
+    // Función para verificar cookies
+    const checkCookies = () => {
+      const allCookies = document.cookie.split("; ");
+      
+      // Verificar si es el creador
+      const ownerCookie = allCookies.find((row) => row.startsWith(`destello_owner_${eventId}`));
+      if (ownerCookie) {
+        // Es el creador - extraer el NIP de la cookie
+        const nipValue = ownerCookie.split("=")[1];
+        setIsOwner(true);
+        setOwnerNip(nipValue);
+        // No redirigir, mostrar vista especial para owner
+        return;
+      }
+      
+      // Verificar si ya respondió
+      const responseCookie = allCookies.find((row) => row.startsWith(`destello_response_${eventId}`));
+      if (responseCookie) {
+        const response = responseCookie.split("=")[1];
+        setHaRespondido(true);
+        setRespuesta(response as "yes" | "no");
+        
+        if (response === "yes") {
+          // Si ya aceptó y tiene nombre, redirigir directamente a /people
+          const nombreCookie = allCookies.find((row) => row.startsWith(`destello_nombre_${eventId}`));
+          
+          if (nombreCookie) {
+            // Ya aceptó y tiene nombre guardado, redirigir a /people
+            const nombreValue = nombreCookie.split("=")[1];
+            setNombreInvitado(nombreValue);
+            router.push(`/e/${eventId}/people`);
+            return;
+          }
+          
+          // Si aceptó pero no tiene nombre, ir a sección de nombre
+          setCurrentSection(4);
+        } else {
+          setCurrentSection(5); // Ir a animación de vacío
         }
-      }, 2000);
-      return () => clearTimeout(timer);
+      }
+    };
+    
+    // Verificar cookies inmediatamente
+    checkCookies();
+    
+    // También verificar cuando eventData se carga (por si acaso)
+    if (eventData) {
+      checkCookies();
     }
-  }, [showEntry, currentSection]);
+  }, [eventId, eventData, router]);
 
-  const handleAccept = () => {
+  // Removed auto-scroll logic since cosmic entry is removed
+
+  const handleAccept = async () => {
     setRespuesta("yes");
     setHaRespondido(true);
-    // Guardar en cookie
-    document.cookie = `destello_response_${eventId}=yes; path=/; max-age=31536000`;
+    // Guardar en cookie para control de acceso
+    document.cookie = `destello_response_${eventId}=yes; path=/; max-age=31536000; SameSite=Lax`;
+    // NO guardar en BD todavía (solo cuando proporcione nombre)
     // Animación de lluvia de estrellas
     setCurrentSection(4);
+    
+    // Scroll automático hacia la sección de nombre después de la animación
+    setTimeout(() => {
+      sectionRefs.current[4]?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 1000);
   };
 
   const handleReject = () => {
     setRespuesta("no");
     setHaRespondido(true);
-    // Guardar en cookie
-    document.cookie = `destello_response_${eventId}=no; path=/; max-age=31536000`;
-    // Animación de vacío de estrellas
-    setTimeout(() => {
-      setCurrentSection(5); // Sección de agradecimiento por rechazo
-    }, 2000);
+    // Guardar en cookie para recordar que rechazó
+    document.cookie = `destello_response_${eventId}=no; path=/; max-age=31536000; SameSite=Lax`;
+    // NO guardar en BD (según Product.md línea 158)
+    // Cambiar inmediatamente a la sección de agradecimiento por rechazo
+    setCurrentSection(5);
   };
 
   const toggleOpcion = (opcion: string) => {
@@ -99,37 +213,248 @@ export default function EventPage() {
     }
   };
 
-  const handleSubmitNombre = () => {
-    if (nombreInvitado.trim()) {
+  const handleSubmitNombre = async () => {
+    if (nombreInvitado.trim() && respuesta === "yes") {
+      // Guardar respuesta en BD (solo si aceptó)
+      const { error } = await supabase
+        .from("guests")
+        .insert({
+          event_id: eventId,
+          nombre: nombreInvitado.trim(),
+          response: "yes",
+          opciones_seleccionadas: opcionesSeleccionadas,
+        });
+
+      if (error) {
+        console.error("Error saving response:", error);
+        setToastMessage("Error al guardar tu respuesta. Por favor intenta de nuevo.");
+        setToastType("error");
+        setShowToast(true);
+        return;
+      }
+
       // Guardar en cookie
-      document.cookie = `destello_nombre_${eventId}=${nombreInvitado}; path=/; max-age=31536000`;
-      setCurrentSection(6); // Sección final
+      document.cookie = `destello_nombre_${eventId}=${nombreInvitado.trim()}; path=/; max-age=31536000; SameSite=Lax`;
+      
+      // Actualizar contador de confirmados
+      setConfirmados((prev) => prev + 1);
+      
+      // Mostrar sección "Nos vemos" (sección 6)
+      setCurrentSection(6);
+      
+      // Scroll automático hacia la sección "Nos vemos"
+      setTimeout(() => {
+        sectionRefs.current[6]?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300);
     }
   };
 
-  if (showEntry) {
+  if (loading) {
     return (
-      <CosmicEntry
-        eventName={mockEventData.nombre}
-        onComplete={() => {
-          setShowEntry(false);
-          setCurrentSection(0);
-        }}
-      />
+      <div className="min-h-screen bg-black flex items-center justify-center text-white">
+        <div className="text-xl">Cargando invitación...</div>
+      </div>
     );
   }
 
-  // Si rechazó, mostrar animación de vacío
-  if (respuesta === "no" && currentSection === 5) {
+  if (!eventData) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-white">
+        <div className="text-center space-y-4">
+          <h2 className="text-2xl font-bold">Evento no encontrado</h2>
+          <p className="text-white/70">El evento que buscas no existe o ha expirado</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Removed cosmic entry animation - it's redundant with the first section
+
+  // Vista especial para el owner - mostrar solo detalle del evento con opción a modificar
+  if (isOwner && eventData) {
+    return (
+      <div className="min-h-screen bg-black text-white relative overflow-x-hidden">
+        <div className="container mx-auto px-4 py-12 max-w-4xl">
+          {/* Header para owner */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                Tu Evento
+              </h1>
+              <div className="px-3 py-1 bg-purple-500/20 border border-purple-500/50 rounded-full text-sm text-purple-300">
+                Owner
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Detalle del evento */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="space-y-6 p-6 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm"
+          >
+            <div>
+              <p className="text-white/60 text-sm mb-1">Nombre del evento</p>
+              <p className="text-2xl md:text-3xl font-bold">{eventData.nombre}</p>
+            </div>
+
+            {eventData.descripcion && (
+              <div>
+                <p className="text-white/60 text-sm mb-1">Descripción</p>
+                <p className="text-white/80">{eventData.descripcion}</p>
+              </div>
+            )}
+
+            <div>
+              <p className="text-white/60 text-sm mb-1">Fecha y hora</p>
+              <p className="text-xl font-semibold">
+                {new Date(eventData.fecha).toLocaleString("es-ES", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-white/60 text-sm mb-1">Lugar</p>
+              <p className="text-lg">{eventData.lugar}</p>
+            </div>
+
+            <div>
+              <p className="text-white/60 text-sm mb-1">Invitados confirmados</p>
+              <p className="text-3xl font-bold text-purple-300">{confirmados}</p>
+            </div>
+
+            {eventData.anfitriones && (
+              <div>
+                <p className="text-white/60 text-sm mb-1">Anfitriones</p>
+                <p className="text-white/80">{eventData.anfitriones}</p>
+              </div>
+            )}
+
+            {eventData.opciones_traer && eventData.opciones_traer.length > 0 && (
+              <div>
+                <p className="text-white/60 text-sm mb-2">Opciones para llevar</p>
+                <div className="flex flex-wrap gap-2">
+                  {eventData.opciones_traer.map((opcion, index) => (
+                    <span
+                      key={index}
+                      className="px-3 py-1 bg-purple-500/20 rounded-full text-sm"
+                    >
+                      {opcion}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {eventData.audio_url && (
+              <div>
+                <p className="text-white/60 text-sm mb-2">Mensaje de voz</p>
+                <audio 
+                  controls 
+                  className="w-full max-w-md" 
+                  preload="auto"
+                  playsInline
+                  onLoadedMetadata={(e) => {
+                    const audio = e.target as HTMLAudioElement;
+                    console.log("Audio metadata loaded:", {
+                      duration: audio.duration,
+                      readyState: audio.readyState,
+                      src: audio.currentSrc
+                    });
+                  }}
+                  onCanPlay={(e) => {
+                    console.log("Audio can play");
+                  }}
+                  onError={(e) => {
+                    const audio = e.target as HTMLAudioElement;
+                    console.error("Error loading audio:", {
+                      error: audio.error,
+                      code: audio.error?.code,
+                      message: audio.error?.message,
+                      src: audio.src,
+                      currentSrc: audio.currentSrc,
+                      networkState: audio.networkState,
+                      readyState: audio.readyState
+                    });
+                  }}
+                  onEnded={() => {
+                    console.log("Audio ended");
+                  }}
+                >
+                  {/* Priorizar formatos compatibles: MP4/M4A primero para Safari iOS */}
+                  <source src={eventData.audio_url} type="audio/mp4" />
+                  <source src={eventData.audio_url} type="audio/m4a" />
+                  <source src={eventData.audio_url} type="audio/webm" />
+                  <source src={eventData.audio_url} type="audio/mpeg" />
+                  <source src={eventData.audio_url} type="audio/ogg" />
+                  <source src={eventData.audio_url} type="audio/wav" />
+                  Tu navegador no soporta el elemento de audio.
+                </audio>
+              </div>
+            )}
+          </motion.div>
+
+          {/* Acciones para el owner */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mt-8 space-y-4"
+          >
+            <Button
+              onClick={() => router.push(`/e/${eventId}/people`)}
+              className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-lg py-6 rounded-xl"
+            >
+              Ver invitados confirmados
+            </Button>
+
+            <Button
+              onClick={async () => {
+                const eventUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/e/${eventId}`;
+                try {
+                  await navigator.clipboard.writeText(eventUrl);
+                  setToastMessage("Link copiado!");
+                  setToastType("success");
+                  setShowToast(true);
+                } catch (err) {
+                  setToastMessage("Error al copiar");
+                  setToastType("error");
+                  setShowToast(true);
+                }
+              }}
+              variant="outline"
+              className="w-full border-white/20 hover:bg-white/10"
+            >
+              Copiar link del evento
+            </Button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // Si rechazó, mostrar animación de vacío y agradecimiento inmediatamente
+  if (respuesta === "no") {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center relative overflow-hidden">
+        {/* Animación de estrellas desapareciendo */}
         <motion.div
           initial={{ opacity: 1 }}
           animate={{ opacity: 0 }}
           transition={{ duration: 3 }}
           className="absolute inset-0"
         >
-          {/* Estrellas desapareciendo */}
           {Array.from({ length: 50 }).map((_, i) => (
             <motion.div
               key={i}
@@ -149,9 +474,12 @@ export default function EventPage() {
             />
           ))}
         </motion.div>
+        
+        {/* Mensaje de agradecimiento - aparece después de la animación */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 2, duration: 0.8 }}
           className="text-center space-y-4 z-10"
         >
           <h2 className="text-3xl font-bold">Gracias</h2>
@@ -170,48 +498,174 @@ export default function EventPage() {
         ref={(el) => {
           sectionRefs.current[0] = el;
         }}
-        className="min-h-screen flex flex-col items-center justify-center px-4 text-center space-y-6 snap-start"
+        className="min-h-[85vh] md:min-h-screen flex flex-col items-center justify-center px-4 text-center space-y-6 snap-start relative py-8 md:py-0"
       >
+        {/* Destello cósmico animado */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: [0, 1, 0], scale: [0, 1.5, 2] }}
+          transition={{ duration: 1.5, ease: "easeOut" }}
+          className="absolute inset-0 flex items-center justify-center pointer-events-none"
+        >
+          <div className="w-64 h-64 md:w-96 md:h-96 bg-gradient-to-r from-purple-500/30 to-pink-500/30 rounded-full blur-3xl" />
+        </motion.div>
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
+          transition={{ delay: 0.3 }}
+          className="relative z-10"
         >
-          <p className="text-white/70 text-lg mb-4">
+          {/* Texto introductorio con animación */}
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.8 }}
+            className="text-white/70 text-base md:text-lg mb-6"
+          >
             Si puedes ver esto es porque alguien te ha invitado a:
-          </p>
-          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-6">
-            {mockEventData.nombre}
-          </h1>
-          {mockEventData.anfitriones && (
-            <div className="mt-4">
+          </motion.p>
+
+          {/* Destello alrededor del nombre */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.7, duration: 0.8, ease: "easeOut" }}
+            className="relative inline-block"
+          >
+            {/* Glow effect */}
+            <motion.div
+              animate={{
+                boxShadow: [
+                  "0 0 20px rgba(192, 132, 252, 0.3)",
+                  "0 0 40px rgba(192, 132, 252, 0.5), 0 0 60px rgba(236, 72, 153, 0.3)",
+                  "0 0 20px rgba(192, 132, 252, 0.3)",
+                ],
+              }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="absolute inset-0 rounded-2xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 blur-xl -z-10"
+            />
+            <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-6 relative z-10">
+              ✦ {eventData.nombre} ✦
+            </h1>
+          </motion.div>
+
+          {eventData.anfitriones && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1 }}
+              className="mt-4"
+            >
               <p className="text-white/60 text-sm">Anfitriones:</p>
-              <p className="text-white/80">{mockEventData.anfitriones}</p>
-            </div>
+              <p className="text-white/80">{eventData.anfitriones}</p>
+            </motion.div>
           )}
-          <div className="mt-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.2 }}
+            className="mt-4"
+          >
             <p className="text-white/60 text-sm">Confirmados:</p>
-            <p className="text-2xl font-bold text-purple-300">{mockEventData.confirmados}</p>
-          </div>
+            <p className="text-2xl font-bold text-purple-300">{confirmados}</p>
+          </motion.div>
+        </motion.div>
+
+        {/* Indicador de scroll hacia abajo - Tenue y discreto */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.5, duration: 1 }}
+          className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2 z-10"
+        >
+          <motion.div
+            animate={{
+              y: [0, 10, 0],
+              opacity: [0.3, 0.6, 0.3],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="flex flex-col items-center gap-1"
+          >
+            <ChevronDown className="w-5 h-5 text-white/40" strokeWidth={2} />
+            <ChevronDown
+              className="w-5 h-5 text-white/30 -mt-2"
+              strokeWidth={2}
+            />
+          </motion.div>
+          <motion.p
+            animate={{
+              opacity: [0.3, 0.5, 0.3],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="text-xs text-white/30 font-light"
+          >
+            Desliza
+          </motion.p>
         </motion.div>
       </section>
 
       {/* Sección 1.1: Audio */}
-      {mockEventData.tieneAudio && (
+      {eventData.audio_url && (
         <section
           ref={(el) => {
             sectionRefs.current[1] = el;
           }}
-          className="min-h-screen flex items-center justify-center px-4 snap-start"
+          className="min-h-[50vh] md:min-h-[60vh] flex items-center justify-center px-4 snap-start py-8 md:py-12"
         >
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="text-center"
+            className="text-center w-full max-w-md"
           >
-            <audio controls className="w-full max-w-md">
-              <source src="/audio.mp3" type="audio/mpeg" />
+            <p className="text-white/60 text-sm mb-4">Mensaje de voz</p>
+            <audio 
+              controls 
+              className="w-full" 
+              preload="auto"
+              onLoadedMetadata={(e) => {
+                const audio = e.target as HTMLAudioElement;
+                console.log("Audio metadata loaded:", {
+                  duration: audio.duration,
+                  readyState: audio.readyState,
+                  src: audio.currentSrc
+                });
+              }}
+              onCanPlay={(e) => {
+                console.log("Audio can play");
+              }}
+              onError={(e) => {
+                const audio = e.target as HTMLAudioElement;
+                console.error("Error loading audio:", {
+                  error: audio.error,
+                  code: audio.error?.code,
+                  message: audio.error?.message,
+                  src: audio.src,
+                  currentSrc: audio.currentSrc,
+                  networkState: audio.networkState,
+                  readyState: audio.readyState
+                });
+              }}
+              onEnded={() => {
+                console.log("Audio ended");
+              }}
+            >
+              {/* Priorizar formatos compatibles con Safari */}
+              <source src={eventData.audio_url} type="audio/mp4" />
+              <source src={eventData.audio_url} type="audio/mpeg" />
+              <source src={eventData.audio_url} type="audio/webm" />
+              <source src={eventData.audio_url} type="audio/ogg" />
+              <source src={eventData.audio_url} type="audio/wav" />
+              Tu navegador no soporta el elemento de audio.
             </audio>
           </motion.div>
         </section>
@@ -222,7 +676,7 @@ export default function EventPage() {
         ref={(el) => {
           sectionRefs.current[2] = el;
         }}
-        className="min-h-screen flex items-center justify-center px-4 snap-start"
+        className="min-h-[75vh] md:min-h-screen flex items-center justify-center px-4 snap-start py-8 md:py-12"
       >
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -235,7 +689,7 @@ export default function EventPage() {
             <div>
               <p className="text-white/60 text-sm">Fecha y hora</p>
               <p className="text-2xl font-bold mt-2">
-                {new Date(`${mockEventData.fecha}T${mockEventData.hora}`).toLocaleString("es-ES", {
+                {new Date(eventData.fecha).toLocaleString("es-ES", {
                   weekday: "long",
                   year: "numeric",
                   month: "long",
@@ -247,7 +701,7 @@ export default function EventPage() {
             </div>
             <div>
               <p className="text-white/60 text-sm">Coordenadas</p>
-              <p className="text-lg mt-2">{mockEventData.lugar}</p>
+              <p className="text-lg mt-2">{eventData.lugar}</p>
             </div>
           </div>
         </motion.div>
@@ -259,7 +713,7 @@ export default function EventPage() {
           ref={(el) => {
             sectionRefs.current[3] = el;
           }}
-          className="min-h-screen flex items-center justify-center px-4 snap-start"
+          className="min-h-[75vh] md:min-h-screen flex flex-col items-center justify-center px-4 text-center space-y-8 snap-start py-8 md:py-12"
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -323,7 +777,7 @@ export default function EventPage() {
           ref={(el) => {
             sectionRefs.current[4] = el;
           }}
-          className="min-h-screen flex items-center justify-center px-4 snap-start"
+          className="min-h-[75vh] md:min-h-screen flex items-center justify-center px-4 snap-start py-8 md:py-12"
         >
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -351,7 +805,7 @@ export default function EventPage() {
             </div>
 
             {/* Opciones para llevar */}
-            {mockEventData.opcionesTraer && mockEventData.opcionesTraer.length > 0 && (
+            {eventData.opciones_traer && eventData.opciones_traer.length > 0 && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -361,7 +815,7 @@ export default function EventPage() {
                 <h3 className="text-xl font-semibold">¿Quieres llevar algo?</h3>
                 <p className="text-white/70 text-sm">Aquí algunas opciones:</p>
                 <div className="flex flex-wrap gap-3">
-                  {mockEventData.opcionesTraer.map((opcion) => (
+                  {eventData.opciones_traer.map((opcion) => (
                     <button
                       key={opcion}
                       onClick={() => toggleOpcion(opcion)}
@@ -396,26 +850,56 @@ export default function EventPage() {
       )}
 
       {/* Sección 6: Nos vemos */}
-      {nombreInvitado && currentSection === 6 && (
-        <section className="min-h-screen flex items-center justify-center px-4 snap-start">
+      {respuesta === "yes" && nombreInvitado.trim() && (
+        <section
+          ref={(el) => {
+            sectionRefs.current[6] = el;
+          }}
+          className="min-h-[75vh] md:min-h-screen flex items-center justify-center px-4 snap-start py-8 md:py-12"
+        >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="text-center space-y-6 max-w-2xl"
+            className="text-center space-y-8 max-w-2xl w-full"
           >
-            <h2 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
               Es todo, nos vemos el{" "}
-              {new Date(`${mockEventData.fecha}T${mockEventData.hora}`).toLocaleDateString("es-ES", {
+              {new Date(eventData.fecha).toLocaleDateString("es-ES", {
                 weekday: "long",
                 day: "numeric",
                 month: "long",
               })}
             </h2>
-            <p className="text-2xl text-white/80">en</p>
-            <p className="text-3xl font-semibold">{mockEventData.lugar}</p>
+            <p className="text-xl md:text-2xl text-white/80">en</p>
+            <p className="text-2xl md:text-3xl font-semibold">{eventData.lugar}</p>
+            
+            {/* Botón para ver invitados */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="pt-6"
+            >
+              <Button
+                onClick={() => {
+                  router.push(`/e/${eventId}/people`);
+                }}
+                className="w-full sm:w-auto px-8 py-6 text-lg bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-xl"
+              >
+                Ver invitados confirmados
+              </Button>
+            </motion.div>
           </motion.div>
         </section>
       )}
+      
+      {/* Toast Notification */}
+      <Toast
+        message={toastMessage}
+        type={toastType}
+        isVisible={showToast}
+        onClose={() => setShowToast(false)}
+      />
     </div>
   );
 }

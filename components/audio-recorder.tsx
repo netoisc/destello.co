@@ -27,18 +27,29 @@ export default function AudioRecorder({
   const streamRef = useRef<MediaStream | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const timeDisplayRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     return () => {
       // Cleanup on unmount
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
       if (timerRef.current) {
         clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current = null;
       }
     };
-  }, []);
+  }, [audioUrl]);
 
   const requestPermission = async () => {
     try {
@@ -72,8 +83,40 @@ export default function AudioRecorder({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
+      // Detectar mejor formato compatible según el navegador
+      // Priorizar formatos para máxima compatibilidad:
+      // 1. Safari iOS: audio/mp4 o audio/m4a
+      // 2. Android Chrome: audio/webm
+      // 3. Desktop: audio/webm o audio/mp4
+      
+      let mimeType = "audio/webm"; // Default para Chrome/Firefox
+      
+      // Detectar si es iOS Safari
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      
+      if (isIOS || isSafari) {
+        // Safari iOS prefiere audio/mp4 o audio/m4a
+        if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        } else if (MediaRecorder.isTypeSupported("audio/m4a")) {
+          mimeType = "audio/m4a";
+        } else if (MediaRecorder.isTypeSupported("audio/aac")) {
+          mimeType = "audio/aac";
+        }
+      } else {
+        // Chrome, Firefox, Edge - preferir webm
+        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+          mimeType = "audio/webm;codecs=opus";
+        } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+          mimeType = "audio/webm";
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        }
+      }
+      
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4",
+        mimeType: mimeType,
       });
 
       mediaRecorderRef.current = mediaRecorder;
@@ -88,20 +131,61 @@ export default function AudioRecorder({
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
         const url = URL.createObjectURL(audioBlob);
+        
+        // Cleanup timer before state updates
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+        
         setAudioUrl(url);
+        setIsRecording(false);
+        setIsPaused(false);
+        startTimeRef.current = null;
+        
         if (onRecordingComplete) {
           onRecordingComplete(audioBlob);
         }
       };
 
-      mediaRecorder.start();
+      // Start recording first
+      mediaRecorder.start(100); // Request data every 100ms to avoid buffer issues
+      
+      // Set state after recorder is started
+      startTimeRef.current = Date.now();
       setIsRecording(true);
       setIsPaused(false);
+      setRecordingTime(0);
+      
+      // Initialize display
+      if (timeDisplayRef.current) {
+        timeDisplayRef.current.textContent = "0:00";
+      }
 
-      // Start timer
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
+      // Update time display directly WITHOUT causing re-renders
+      const updateTime = () => {
+        // Check if still recording
+        if (!startTimeRef.current || !mediaRecorderRef.current) {
+          return;
+        }
+        
+        const state = mediaRecorderRef.current.state;
+        if (state === 'inactive' || state === 'recording' === false) {
+          return;
+        }
+        
+        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        
+        // Update display directly via DOM to avoid React re-renders
+        if (timeDisplayRef.current) {
+          const mins = Math.floor(elapsed / 60);
+          const secs = elapsed % 60;
+          timeDisplayRef.current.textContent = `${mins}:${secs.toString().padStart(2, "0")}`;
+        }
+      };
+
+      // Update every 500ms for smoother performance (less frequent = fewer interruptions)
+      timerRef.current = setInterval(updateTime, 500);
     } catch (err: any) {
       setError("Error al iniciar la grabación: " + err.message);
       setIsRecording(false);
@@ -113,9 +197,11 @@ export default function AudioRecorder({
       mediaRecorderRef.current.stop();
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
       setIsRecording(false);
       setIsPaused(false);
+      startTimeRef.current = null;
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -127,14 +213,38 @@ export default function AudioRecorder({
     if (mediaRecorderRef.current && isRecording) {
       if (isPaused) {
         mediaRecorderRef.current.resume();
-        timerRef.current = setInterval(() => {
-          setRecordingTime((prev) => prev + 1);
-        }, 1000);
+        // Resume timer from where we paused - adjust startTime to account for paused duration
+        if (startTimeRef.current) {
+          const currentElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          const pausedElapsed = recordingTime;
+          const pausedDuration = currentElapsed - pausedElapsed;
+          startTimeRef.current = Date.now() - (pausedElapsed * 1000);
+        } else {
+          startTimeRef.current = Date.now();
+        }
+        
+        const updateTime = () => {
+          if (!startTimeRef.current || !mediaRecorderRef.current) return;
+          
+          const state = mediaRecorderRef.current.state;
+          if (state === 'inactive' || state === 'paused') return;
+          
+          const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          
+          if (timeDisplayRef.current) {
+            const mins = Math.floor(elapsed / 60);
+            const secs = elapsed % 60;
+            timeDisplayRef.current.textContent = `${mins}:${secs.toString().padStart(2, "0")}`;
+          }
+        };
+
+        timerRef.current = setInterval(updateTime, 500);
         setIsPaused(false);
       } else {
         mediaRecorderRef.current.pause();
         if (timerRef.current) {
           clearInterval(timerRef.current);
+          timerRef.current = null;
         }
         setIsPaused(true);
       }
@@ -207,14 +317,21 @@ export default function AudioRecorder({
               <div className="flex flex-col items-center gap-4">
                 <button
                   type="button"
-                  onClick={handleCircleClick}
-                  className={`w-32 h-32 rounded-full border-2 flex items-center justify-center backdrop-blur-sm shadow-lg transition-all duration-300 cursor-pointer active:scale-95 ${
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleCircleClick();
+                  }}
+                  className={`w-32 h-32 rounded-full border-2 flex items-center justify-center backdrop-blur-sm shadow-lg transition-all duration-300 cursor-pointer ${
                     isPaused
                       ? "bg-purple-500/30 border-purple-400/50 shadow-purple-500/30 hover:scale-105"
-                      : "bg-red-500/30 border-red-400/50 shadow-red-500/30 animate-pulse hover:scale-105"
+                      : "bg-red-500/30 border-red-400/50 shadow-red-500/30 hover:scale-105"
                   }`}
+                  style={!isPaused ? { 
+                    animation: 'recording-pulse 2s ease-in-out infinite'
+                  } : undefined}
                 >
-                  <div className={`w-24 h-24 rounded-full flex items-center justify-center ${
+                  <div className={`w-24 h-24 rounded-full flex items-center justify-center transition-colors ${
                     isPaused ? "bg-purple-500" : "bg-red-500"
                   }`}>
                     {isPaused ? (
@@ -226,7 +343,12 @@ export default function AudioRecorder({
                 </button>
                 
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-purple-300">{formatTime(recordingTime)}</div>
+                  <div 
+                    ref={timeDisplayRef}
+                    className="text-3xl font-bold text-purple-300 tabular-nums"
+                  >
+                    {formatTime(recordingTime)}
+                  </div>
                   <div className="text-xs text-gray-400 mt-1">
                     {isPaused ? "Pausado - Toca para continuar" : "Grabando... - Toca para detener"}
                   </div>
