@@ -110,8 +110,9 @@ export default function CreatePage() {
 
   const handleNext = async () => {
     if (step === 5) {
-      // Si ya se creó el evento, no hacer nada más
+      // Si ya se creó el evento, redirigir al home
       if (eventId) {
+        router.push('/');
         return;
       }
       
@@ -751,7 +752,8 @@ export default function CreatePage() {
           <Button
             variant="outline"
             onClick={handleBack}
-            className="rounded-xl border-white/20 text-gray-300 hover:bg-white/5"
+            disabled={step === 5 && !!eventId}
+            className="rounded-xl border-white/20 text-gray-300 hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             ← {step === 1 ? "Volver" : "Anterior"}
           </Button>

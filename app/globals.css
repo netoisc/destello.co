@@ -175,63 +175,6 @@ All colors MUST be HSL.
     overflow: hidden;
   }
 
-  /* Twinkling stars animation */
-  @keyframes twinkle {
-    0%, 100% {
-      opacity: 0;
-      transform: scale(0.5);
-    }
-    50% {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
-  @keyframes drift {
-    0% {
-      transform: translate(0, 0);
-    }
-    100% {
-      transform: translate(var(--drift-x, 20px), var(--drift-y, 20px));
-    }
-  }
-
-  /* Stars container */
-  .stars-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: -1;
-    pointer-events: none;
-    overflow: hidden;
-  }
-
-  /* Individual star */
-  .star {
-    position: absolute;
-    width: 2px;
-    height: 2px;
-    background: hsl(280 100% 85%);
-    border-radius: 50%;
-    box-shadow: 0 0 6px hsl(280 100% 85% / 0.8),
-                0 0 12px hsl(280 100% 65% / 0.4);
-    animation: twinkle calc(3s + var(--delay, 0s)) ease-in-out infinite,
-               drift calc(30s + var(--drift-delay, 0s)) ease-in-out infinite alternate;
-    opacity: 0;
-  }
-
-  /* Brighter stars */
-  .star.bright {
-    width: 3px;
-    height: 3px;
-    background: hsl(280 100% 95%);
-    box-shadow: 0 0 8px hsl(280 100% 95% / 1),
-                0 0 16px hsl(280 100% 75% / 0.6),
-                0 0 24px hsl(280 100% 65% / 0.3);
-    animation-duration: calc(2s + var(--delay, 0s)), calc(25s + var(--drift-delay, 0s));
-  }
 
   /* Nebula glow overlays */
   .cosmic-bg::before,

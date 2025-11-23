@@ -7,7 +7,6 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Billboard, Text, TrackballControls, Sphere } from "@react-three/drei";
 import * as THREE from "three";
 import { supabase } from "@/lib/supabase";
-// StarsBackground ya está en el layout global, no necesario importarlo aquí
 
 interface Person {
   nombre: string;
