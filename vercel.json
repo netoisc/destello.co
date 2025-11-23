@@ -1,9 +1,5 @@
 {
-  "crons": [
-    {
-      "path": "/api/cleanup",
-      "schedule": "0 */6 * * *"
-    }
-  ]
+  "_comment": "Crons deshabilitados temporalmente para pruebas públicas",
+  "crons": []
 }
 
