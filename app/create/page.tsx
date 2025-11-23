@@ -110,167 +110,171 @@ export default function CreatePage() {
 
   const handleNext = async () => {
     if (step === 5) {
-      if (!eventId) {
-        setLoading(true);
-        try {
-          // Generar eventId y NIP
-          const newEventId = `sun-${Math.random().toString(36).substring(2, 11)}`;
-          const nip = Math.floor(1000 + Math.random() * 9000).toString();
-          
-          // Calcular fecha/hora combinada
-          const fechaHora = new Date(`${formData.fecha}T${formData.hora}`);
-          
-          // Validar que la fecha sea válida y en el futuro
-          if (isNaN(fechaHora.getTime())) {
-            setToastMessage("La fecha y hora seleccionadas no son válidas. Por favor verifica.");
-            setToastType("error");
-            setShowToast(true);
-            setLoading(false);
-            return;
-          }
-          
-          // Verificar que la fecha esté al menos 1 día en el futuro
-          const mañana = new Date();
-          mañana.setDate(mañana.getDate() + 1);
-          mañana.setHours(0, 0, 0, 0); // Inicio del día siguiente
-          if (fechaHora <= mañana) {
-            setToastMessage("La fecha y hora del evento deben estar al menos 1 día en el futuro. Por favor selecciona una fecha posterior a mañana.");
-            setToastType("error");
-            setShowToast(true);
-            setLoading(false);
-            return;
-          }
-          
-          // Verificar que la fecha no sea más de 6 meses en el futuro
-          const seisMeses = new Date();
-          seisMeses.setMonth(seisMeses.getMonth() + 6);
-          if (fechaHora > seisMeses) {
-            setToastMessage("La fecha del evento no puede ser más de 6 meses en el futuro.");
-            setToastType("error");
-            setShowToast(true);
-            setLoading(false);
-            return;
-          }
-          
-          // Calcular expires_at (1 día después del evento)
-          const expiresAt = new Date(fechaHora);
-          expiresAt.setDate(expiresAt.getDate() + 1);
-          
-          // Subir audio a Storage si existe
-          let audioUrl = null;
-          if (formData.audioBlob) {
-            try {
-              // Determinar extensión y tipo MIME correcto para máxima compatibilidad
-              // Safari iOS: audio/mp4 o audio/m4a (preferir m4a para mejor compatibilidad)
-              // Android Chrome: audio/webm o audio/mp4
-              let extension = 'm4a'; // Usar m4a por defecto para mejor compatibilidad Safari iOS
-              let contentType = 'audio/mp4'; // m4a usa el mismo MIME type que mp4
-              
-              const blobType = formData.audioBlob.type.toLowerCase();
-              
-              if (blobType.includes('webm')) {
-                extension = 'webm';
-                contentType = 'audio/webm';
-              } else if (blobType.includes('m4a') || blobType.includes('mp4') || blobType.includes('aac')) {
-                // Safari iOS graba en mp4/m4a/aac - todos usan audio/mp4 MIME type
-                extension = 'm4a'; // Usar m4a para mejor compatibilidad
-                contentType = 'audio/mp4';
-              } else if (blobType.includes('mpeg')) {
-                extension = 'mp3';
-                contentType = 'audio/mpeg';
-              } else if (blobType.includes('wav')) {
-                extension = 'wav';
-                contentType = 'audio/wav';
-              } else if (blobType.includes('ogg')) {
-                extension = 'ogg';
-                contentType = 'audio/ogg';
-              }
-              
-              const audioFileName = `${newEventId}_audio.${extension}`;
-              const { data: uploadData, error: uploadError } = await supabase.storage
-                .from('audio')
-                .upload(audioFileName, formData.audioBlob, {
-                  contentType: contentType,
-                  upsert: false,
-                  cacheControl: '3600',
-                });
-
-              if (uploadError) {
-                console.error("Error uploading audio:", uploadError);
-                // Continuar sin audio si falla la subida
-              } else if (uploadData) {
-                const { data: urlData } = supabase.storage
-                  .from('audio')
-                  .getPublicUrl(audioFileName);
-                audioUrl = urlData.publicUrl;
-              }
-            } catch (audioError) {
-              console.error("Error uploading audio:", audioError);
-              // Continuar sin audio si falla la subida
-            }
-          }
-
-          // Guardar evento en BD
-          const { error: eventError } = await supabase
-            .from("events")
-            .insert({
-              id: newEventId,
-              owner_nombre: formData.tuNombre,
-              nombre: formData.nombreEvento,
-              descripcion: formData.descripcion || null,
-              audio_url: audioUrl,
-              limite_total: formData.limiteTotal,
-              anfitriones: formData.anfitriones || null,
-              fecha: fechaHora.toISOString(),
-              lugar: formData.lugar,
-              opciones_traer: formData.opcionesTraer,
-              owner_nip: nip,
-              expires_at: expiresAt.toISOString(),
-            });
-
-          if (eventError) {
-            console.error("Error creating event:", eventError);
-            
-            // Mensaje más específico según el error
-            let errorMessage = "Error al crear el evento. Por favor intenta de nuevo.";
-            if (eventError.code === '23514' && eventError.message?.includes('valid_fecha')) {
-              errorMessage = "La fecha del evento debe estar en el futuro y no más de 6 meses desde ahora. Por favor verifica la fecha y hora.";
-            } else if (eventError.code === '23505') {
-              errorMessage = "Ya existe un evento con ese ID. Por favor intenta de nuevo.";
-            } else if (eventError.message) {
-              errorMessage = `Error: ${eventError.message}`;
-            }
-            
-            setToastMessage(errorMessage);
-            setToastType("error");
-            setShowToast(true);
-            setLoading(false);
-            return;
-          }
-
-          setEventId(newEventId);
-          setOwnerNip(nip);
-          
-          // Guardar en cookie que es owner (para control de acceso a /people)
-          document.cookie = `destello_owner_${newEventId}=${nip}; path=/; max-age=31536000; SameSite=Lax`;
-          
-          // Mostrar toast de éxito
-          setToastMessage("¡Evento creado exitosamente!");
-          setToastType("success");
-          setShowToast(true);
-          
-          // NO redirigir - dejar que el usuario vea y comparta el link
-        } catch (error: any) {
-          console.error("Error creating event:", error);
-          setToastMessage(error?.message || "Error al crear el evento. Por favor intenta de nuevo.");
-          setToastType("error");
-          setShowToast(true);
-        } finally {
-          setLoading(false);
-        }
+      // Si ya se creó el evento, no hacer nada más
+      if (eventId) {
         return;
       }
+      
+      // Crear el evento
+      setLoading(true);
+      
+      try {
+        // Generar eventId y NIP
+        const newEventId = `sun-${Math.random().toString(36).substring(2, 11)}`;
+        const nip = Math.floor(1000 + Math.random() * 9000).toString();
+        
+        // Calcular fecha/hora combinada
+        const fechaHora = new Date(`${formData.fecha}T${formData.hora}`);
+        
+        // Validar que la fecha sea válida y en el futuro
+        if (isNaN(fechaHora.getTime())) {
+          setToastMessage("La fecha y hora seleccionadas no son válidas. Por favor verifica.");
+          setToastType("error");
+          setShowToast(true);
+          setLoading(false);
+          return;
+        }
+        
+        // Verificar que la fecha esté al menos 1 día en el futuro
+        const mañana = new Date();
+        mañana.setDate(mañana.getDate() + 1);
+        mañana.setHours(0, 0, 0, 0); // Inicio del día siguiente
+        if (fechaHora <= mañana) {
+          setToastMessage("La fecha y hora del evento deben estar al menos 1 día en el futuro. Por favor selecciona una fecha posterior a mañana.");
+          setToastType("error");
+          setShowToast(true);
+          setLoading(false);
+          return;
+        }
+        
+        // Verificar que la fecha no sea más de 6 meses en el futuro
+        const seisMeses = new Date();
+        seisMeses.setMonth(seisMeses.getMonth() + 6);
+        if (fechaHora > seisMeses) {
+          setToastMessage("La fecha del evento no puede ser más de 6 meses en el futuro.");
+          setToastType("error");
+          setShowToast(true);
+          setLoading(false);
+          return;
+        }
+        
+        // Calcular expires_at (1 día después del evento)
+        const expiresAt = new Date(fechaHora);
+        expiresAt.setDate(expiresAt.getDate() + 1);
+        
+        // Subir audio a Storage si existe
+        let audioUrl = null;
+        if (formData.audioBlob) {
+          try {
+            // Determinar extensión y tipo MIME correcto para máxima compatibilidad
+            let extension = 'm4a';
+            let contentType = 'audio/mp4';
+            
+            const blobType = formData.audioBlob.type.toLowerCase();
+            
+            if (blobType.includes('webm')) {
+              extension = 'webm';
+              contentType = 'audio/webm';
+            } else if (blobType.includes('m4a') || blobType.includes('mp4') || blobType.includes('aac')) {
+              extension = 'm4a';
+              contentType = 'audio/mp4';
+            } else if (blobType.includes('mpeg')) {
+              extension = 'mp3';
+              contentType = 'audio/mpeg';
+            } else if (blobType.includes('wav')) {
+              extension = 'wav';
+              contentType = 'audio/wav';
+            } else if (blobType.includes('ogg')) {
+              extension = 'ogg';
+              contentType = 'audio/ogg';
+            }
+            
+            const audioFileName = `${newEventId}_audio.${extension}`;
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('audio')
+              .upload(audioFileName, formData.audioBlob, {
+                contentType: contentType,
+                upsert: false,
+                cacheControl: '3600',
+              });
+
+            if (uploadError) {
+              console.error("Error uploading audio:", uploadError);
+              // Continuar sin audio si falla la subida
+            } else if (uploadData) {
+              const { data: urlData } = supabase.storage
+                .from('audio')
+                .getPublicUrl(audioFileName);
+              audioUrl = urlData.publicUrl;
+            }
+          } catch (audioError) {
+            console.error("Error uploading audio:", audioError);
+            // Continuar sin audio si falla la subida
+          }
+        }
+
+        // Guardar evento en BD
+        const { error: eventError } = await supabase
+          .from("events")
+          .insert({
+            id: newEventId,
+            owner_nombre: formData.tuNombre,
+            nombre: formData.nombreEvento,
+            descripcion: formData.descripcion || null,
+            audio_url: audioUrl,
+            limite_total: formData.limiteTotal,
+            anfitriones: formData.anfitriones || null,
+            fecha: fechaHora.toISOString(),
+            lugar: formData.lugar,
+            opciones_traer: formData.opcionesTraer,
+            owner_nip: nip,
+            expires_at: expiresAt.toISOString(),
+          });
+
+        if (eventError) {
+          console.error("Error creating event:", eventError);
+          
+          // Mensaje más específico según el error
+          let errorMessage = "Error al crear el evento. Por favor intenta de nuevo.";
+          if (eventError.code === '23514' && eventError.message?.includes('valid_fecha')) {
+            errorMessage = "La fecha del evento debe estar en el futuro y no más de 6 meses desde ahora. Por favor verifica la fecha y hora.";
+          } else if (eventError.code === '23505') {
+            errorMessage = "Ya existe un evento con ese ID. Por favor intenta de nuevo.";
+          } else if (eventError.message) {
+            errorMessage = `Error: ${eventError.message}`;
+          }
+          
+          setToastMessage(errorMessage);
+          setToastType("error");
+          setShowToast(true);
+          setLoading(false);
+          return;
+        }
+
+        // Actualizar estado con los nuevos valores
+        setEventId(newEventId);
+        setOwnerNip(nip);
+        
+        // Guardar en cookie que es owner (para control de acceso a /people)
+        document.cookie = `destello_owner_${newEventId}=${nip}; path=/; max-age=31536000; SameSite=Lax`;
+        
+        // Mostrar toast de éxito
+        setToastMessage("¡Evento creado exitosamente!");
+        setToastType("success");
+        setShowToast(true);
+        
+      } catch (error: any) {
+        console.error("Error creating event:", error);
+        setToastMessage(error?.message || "Error al crear el evento. Por favor intenta de nuevo.");
+        setToastType("error");
+        setShowToast(true);
+      } finally {
+        setLoading(false);
+      }
+      return;
     }
+    
+    // Si no es el paso 5, avanzar al siguiente paso
     if (step < 5) {
       setStep(step + 1);
     }
@@ -753,13 +757,15 @@ export default function CreatePage() {
           </Button>
           <Button
             onClick={handleNext}
-            disabled={!canProceed() || loading}
+            disabled={!canProceed() || loading || (step === 5 && !!eventId)}
             className="rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white border-0 shadow-lg shadow-purple-500/30 disabled:opacity-50"
           >
             {loading
               ? "Creando..."
+              : step === 5 && eventId
+              ? "Evento creado ✓"
               : step === 5
-              ? "Confirmar"
+              ? "Finalizar"
               : step === 4
               ? "Continuar"
               : "Siguiente"}

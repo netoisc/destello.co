@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import CosmicEntry from "@/components/cosmic-entry";
 import { supabase } from "@/lib/supabase";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ArrowDown, ArrowUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Toast } from "@/components/ui/toast";
 
@@ -25,7 +25,7 @@ interface EventData {
 export default function EventPage() {
   const params = useParams();
   const router = useRouter();
-  const eventId = params.eventId as string;
+  const eventId = params?.eventId as string;
   
   const [showEntry, setShowEntry] = useState(false); // Removed: cosmic entry animation is redundant
   const [currentSection, setCurrentSection] = useState(0);
@@ -34,6 +34,7 @@ export default function EventPage() {
   const [nombreInvitado, setNombreInvitado] = useState("");
   const [opcionesSeleccionadas, setOpcionesSeleccionadas] = useState<string[]>([]);
   const [haRespondido, setHaRespondido] = useState(false);
+  const [haContinuado, setHaContinuado] = useState(false); // Controla si presionó "Continuar"
   const [respuesta, setRespuesta] = useState<"yes" | "no" | null>(null);
   const [showReaction, setShowReaction] = useState(false);
   const [reactionType, setReactionType] = useState<"applause" | "party" | null>(null);
@@ -44,6 +45,95 @@ export default function EventPage() {
   const [toastType, setToastType] = useState<"success" | "error">("success");
   const [showToast, setShowToast] = useState(false);
   const sectionRefs = useRef<(HTMLElement | null)[]>([]);
+  const [currentVisibleSection, setCurrentVisibleSection] = useState(0);
+  
+  // Función para hacer scroll a una sección específica
+  const scrollToSection = (sectionIndex: number) => {
+    const section = sectionRefs.current[sectionIndex];
+    if (section) {
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+      setCurrentVisibleSection(sectionIndex);
+    }
+  };
+  
+  // Función para ir a la siguiente sección
+  const goToNextSection = () => {
+    let nextSection = currentVisibleSection + 1;
+    
+    // Saltar secciones según el estado
+    if (!eventData?.audio_url && nextSection === 1) {
+      nextSection = 2; // Saltar sección de audio si no existe
+    }
+    
+    if (haRespondido && nextSection === 3) {
+      // Si ya respondió, ir a la sección correspondiente
+      if (respuesta === "yes") {
+        nextSection = 4; // Ir a sección de nombre si aceptó
+      } else {
+        return; // No hay siguiente si rechazó
+      }
+    }
+    
+    if (respuesta === "no") {
+      return; // No hay siguiente sección si rechazó
+    }
+    
+    // Validar que la sección existe
+    if (nextSection < sectionRefs.current.length && sectionRefs.current[nextSection]) {
+      scrollToSection(nextSection);
+    }
+  };
+  
+  // Función para ir a la sección anterior
+  const goToPreviousSection = () => {
+    let prevSection = currentVisibleSection - 1;
+    
+    // Saltar secciones según el estado
+    if (!eventData?.audio_url && prevSection === 1) {
+      prevSection = 0; // Saltar sección de audio si no existe
+    }
+    
+    if (haRespondido && prevSection === 3) {
+      prevSection = 2; // Saltar confirmación si ya respondió
+    }
+    
+    if (respuesta === "yes" && haContinuado && prevSection === 6) {
+      // Si está en "Nos vemos" y ya tiene nombre, no puede ir atrás fácilmente
+      // Pero si quiere, puede ir a la sección 4 (nombre)
+      prevSection = 4;
+    }
+    
+    if (prevSection >= 0 && sectionRefs.current[prevSection]) {
+      scrollToSection(prevSection);
+    }
+  };
+  
+  // Detectar sección visible con Intersection Observer
+  useEffect(() => {
+    const observers: IntersectionObserver[] = [];
+    
+    sectionRefs.current.forEach((section, index) => {
+      if (!section) return;
+      
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+              setCurrentVisibleSection(index);
+            }
+          });
+        },
+        { threshold: 0.5, rootMargin: "-10% 0px -10% 0px" }
+      );
+      
+      observer.observe(section);
+      observers.push(observer);
+    });
+    
+    return () => {
+      observers.forEach((observer) => observer.disconnect());
+    };
+  }, [eventData, haRespondido, respuesta, nombreInvitado, haContinuado]);
 
   // Cargar evento desde BD
   useEffect(() => {
@@ -144,15 +234,21 @@ export default function EventPage() {
         setRespuesta(response as "yes" | "no");
         
         if (response === "yes") {
-          // Si ya aceptó y tiene nombre, redirigir directamente a /people
+          // Si ya aceptó y tiene nombre, verificar si ya continuó
           const nombreCookie = allCookies.find((row) => row.startsWith(`destello_nombre_${eventId}`));
           
           if (nombreCookie) {
-            // Ya aceptó y tiene nombre guardado, redirigir a /people
+            // Ya aceptó y tiene nombre guardado
             const nombreValue = nombreCookie.split("=")[1];
             setNombreInvitado(nombreValue);
-            router.push(`/e/${eventId}/people`);
-            return;
+            
+            // Verificar si ya presionó Continuar (si tiene cookie de continuar o si ya está en /people)
+            const continuadoCookie = allCookies.find((row) => row.startsWith(`destello_continuado_${eventId}`));
+            if (continuadoCookie || window.location.pathname.includes('/people')) {
+              setHaContinuado(true);
+              router.push(`/e/${eventId}/people`);
+              return;
+            }
           }
           
           // Si aceptó pero no tiene nombre, ir a sección de nombre
@@ -235,16 +331,18 @@ export default function EventPage() {
 
       // Guardar en cookie
       document.cookie = `destello_nombre_${eventId}=${nombreInvitado.trim()}; path=/; max-age=31536000; SameSite=Lax`;
+      document.cookie = `destello_continuado_${eventId}=true; path=/; max-age=31536000; SameSite=Lax`;
       
       // Actualizar contador de confirmados
       setConfirmados((prev) => prev + 1);
       
-      // Mostrar sección "Nos vemos" (sección 6)
-      setCurrentSection(6);
+      // Marcar que presionó Continuar
+      setHaContinuado(true);
       
       // Scroll automático hacia la sección "Nos vemos"
       setTimeout(() => {
         sectionRefs.current[6]?.scrollIntoView({ behavior: "smooth", block: "start" });
+        setCurrentSection(6);
       }, 300);
     }
   };
@@ -444,8 +542,11 @@ export default function EventPage() {
     );
   }
 
+  // Determinar si rechazó la invitación (antes de cualquier uso)
+  const isRejected = respuesta === "no";
+
   // Si rechazó, mostrar animación de vacío y agradecimiento inmediatamente
-  if (respuesta === "no") {
+  if (isRejected) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center relative overflow-hidden">
         {/* Animación de estrellas desapareciendo */}
@@ -491,8 +592,52 @@ export default function EventPage() {
     );
   }
 
+  // Determinar navegación (después de verificar si rechazó)
+  // Determinar si puede ir a la siguiente sección
+  let maxSection = 6; // Máxima sección disponible
+  if (!haRespondido) {
+    maxSection = 3; // Confirmación
+  } else if (respuesta === "yes" && !nombreInvitado.trim()) {
+    maxSection = 4; // Nombre
+  } else if (respuesta === "yes" && haContinuado) {
+    maxSection = 6; // Nos vemos
+  } else if (isRejected) {
+    maxSection = 5; // Gracias (rechazo)
+  }
+  
+  const canGoNext = currentVisibleSection < maxSection;
+  const canGoPrev = currentVisibleSection > 0;
+  const showFloatingNav = !isOwner && !isRejected && !(respuesta === "yes" && haContinuado && currentVisibleSection >= 6);
+
   return (
     <div className="min-h-screen bg-black text-white relative overflow-x-hidden">
+      {/* Botón de navegación flotante - visible solo cuando corresponde */}
+      {showFloatingNav && (
+        <div className="fixed bottom-8 right-8 z-50 flex flex-col gap-3">
+          {/* Botón para ir arriba */}
+          {canGoPrev && (
+            <button
+              onClick={goToPreviousSection}
+              className="p-3 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-sm transition-all shadow-lg"
+              aria-label="Sección anterior"
+            >
+              <ArrowUp className="w-5 h-5 text-white/80" strokeWidth={2} />
+            </button>
+          )}
+          
+          {/* Botón para ir abajo */}
+          {canGoNext && (
+            <button
+              onClick={goToNextSection}
+              className="p-3 rounded-full bg-gradient-to-r from-purple-500/80 to-pink-500/80 hover:from-purple-500 hover:to-pink-500 border border-purple-500/50 backdrop-blur-sm transition-all shadow-lg shadow-purple-500/30"
+              aria-label="Siguiente sección"
+            >
+              <ArrowDown className="w-5 h-5 text-white" strokeWidth={2} />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Sección 1: Header con nombre evento */}
       <section
         ref={(el) => {
@@ -572,44 +717,34 @@ export default function EventPage() {
           </motion.div>
         </motion.div>
 
-        {/* Indicador de scroll hacia abajo - Tenue y discreto */}
+        {/* Botón para avanzar a la siguiente sección */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.5, duration: 1 }}
-          className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex flex-col items-center gap-2 z-10"
+          className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10"
         >
-          <motion.div
-            animate={{
-              y: [0, 10, 0],
-              opacity: [0.3, 0.6, 0.3],
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            className="flex flex-col items-center gap-1"
+          <button
+            onClick={goToNextSection}
+            className="flex flex-col items-center gap-2 p-4 rounded-full bg-white/5 hover:bg-white/10 border border-white/20 transition-all backdrop-blur-sm group"
+            aria-label="Continuar a la siguiente sección"
           >
-            <ChevronDown className="w-5 h-5 text-white/40" strokeWidth={2} />
-            <ChevronDown
-              className="w-5 h-5 text-white/30 -mt-2"
-              strokeWidth={2}
-            />
-          </motion.div>
-          <motion.p
-            animate={{
-              opacity: [0.3, 0.5, 0.3],
-            }}
-            transition={{
-              duration: 2,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            className="text-xs text-white/30 font-light"
-          >
-            Desliza
-          </motion.p>
+            <motion.div
+              animate={{
+                y: [0, 5, 0],
+              }}
+              transition={{
+                duration: 1.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            >
+              <ArrowDown className="w-6 h-6 text-white/70 group-hover:text-white transition-colors" strokeWidth={2} />
+            </motion.div>
+            <span className="text-xs text-white/50 group-hover:text-white/70 transition-colors">
+              Continuar
+            </span>
+          </button>
         </motion.div>
       </section>
 
@@ -619,13 +754,13 @@ export default function EventPage() {
           ref={(el) => {
             sectionRefs.current[1] = el;
           }}
-          className="min-h-[50vh] md:min-h-[60vh] flex items-center justify-center px-4 snap-start py-8 md:py-12"
+          className="min-h-[50vh] md:min-h-[60vh] flex flex-col items-center justify-center px-4 snap-start py-8 md:py-12 relative"
         >
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="text-center w-full max-w-md"
+            className="text-center w-full max-w-md space-y-6"
           >
             <p className="text-white/60 text-sm mb-4">Mensaje de voz</p>
             <audio 
@@ -667,6 +802,15 @@ export default function EventPage() {
               <source src={eventData.audio_url} type="audio/wav" />
               Tu navegador no soporta el elemento de audio.
             </audio>
+            
+            {/* Botón para continuar */}
+            <button
+              onClick={goToNextSection}
+              className="flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-white/5 hover:bg-white/10 border border-white/20 transition-all backdrop-blur-sm text-sm text-white/70 hover:text-white mt-4"
+            >
+              Continuar
+              <ArrowDown className="w-4 h-4" strokeWidth={2} />
+            </button>
           </motion.div>
         </section>
       )}
@@ -676,7 +820,7 @@ export default function EventPage() {
         ref={(el) => {
           sectionRefs.current[2] = el;
         }}
-        className="min-h-[75vh] md:min-h-screen flex items-center justify-center px-4 snap-start py-8 md:py-12"
+        className="min-h-[75vh] md:min-h-screen flex flex-col items-center justify-center px-4 snap-start py-8 md:py-12 relative"
       >
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -704,6 +848,19 @@ export default function EventPage() {
               <p className="text-lg mt-2">{eventData.lugar}</p>
             </div>
           </div>
+          
+          {/* Botón para continuar solo si no ha respondido */}
+          {!haRespondido && (
+            <div className="flex justify-center pt-4">
+              <button
+                onClick={goToNextSection}
+                className="flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-white/5 hover:bg-white/10 border border-white/20 transition-all backdrop-blur-sm text-sm text-white/70 hover:text-white"
+              >
+                Continuar
+                <ArrowDown className="w-4 h-4" strokeWidth={2} />
+              </button>
+            </div>
+          )}
         </motion.div>
       </section>
 
@@ -772,7 +929,7 @@ export default function EventPage() {
       )}
 
       {/* Sección 4: Gracias y nombre */}
-      {respuesta === "yes" && (
+      {respuesta === "yes" && !haContinuado && (
         <section
           ref={(el) => {
             sectionRefs.current[4] = el;
@@ -784,45 +941,32 @@ export default function EventPage() {
             animate={{ opacity: 1, y: 0 }}
             className="max-w-2xl w-full space-y-8"
           >
-            <h2 className="text-3xl font-bold text-center">Gracias</h2>
-            <div className="space-y-4">
-              <Label htmlFor="nombre">Tu nombre</Label>
-              <Input
-                id="nombre"
-                value={nombreInvitado}
-                onChange={(e) => setNombreInvitado(e.target.value)}
-                placeholder="¿Cómo te llamas?"
-                className="text-lg py-4"
-                onKeyPress={(e) => e.key === "Enter" && handleSubmitNombre()}
-              />
-              <Button
-                onClick={handleSubmitNombre}
-                disabled={!nombreInvitado.trim()}
-                className="w-full text-lg py-6 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500"
-              >
-                Continuar
-              </Button>
+            <div className="text-center space-y-2">
+              <h2 className="text-3xl font-bold">Gracias</h2>
+              <p className="text-xl text-purple-300">¡Súper bien!, ya casi terminamos...</p>
             </div>
 
-            {/* Opciones para llevar */}
+            {/* Opciones para llevar - Primero según Product.md */}
             {eventData.opciones_traer && eventData.opciones_traer.length > 0 && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
+                transition={{ delay: 0.3 }}
                 className="space-y-4"
               >
-                <h3 className="text-xl font-semibold">¿Quieres llevar algo?</h3>
-                <p className="text-white/70 text-sm">Aquí algunas opciones:</p>
-                <div className="flex flex-wrap gap-3">
+                <div className="text-center space-y-2">
+                  <h3 className="text-lg font-medium">¿quieres llevar algo?</h3>
+                  <p className="text-white/70 text-sm">aquí tienes algunas opciones, pero NTP esto solo es opcional y la idea al final es que la pasemos bien:</p>
+                </div>
+                <div className="flex flex-wrap gap-3 justify-center">
                   {eventData.opciones_traer.map((opcion) => (
                     <button
                       key={opcion}
                       onClick={() => toggleOpcion(opcion)}
-                      className={`px-6 py-3 rounded-full text-sm font-medium transition-all ${
+                      className={`px-6 py-3 rounded-full text-base font-medium transition-all touch-manipulation ${
                         opcionesSeleccionadas.includes(opcion)
-                          ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50"
-                          : "bg-white/10 text-white/70 hover:bg-white/20 border border-white/20"
+                          ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50 scale-110"
+                          : "bg-white/10 text-white/70 hover:bg-white/20 active:bg-white/30 border border-white/20"
                       }`}
                     >
                       {opcion}
@@ -831,6 +975,26 @@ export default function EventPage() {
                 </div>
               </motion.div>
             )}
+
+            {/* Input de nombre - Después de opciones */}
+            <div className="space-y-4">
+              <Label htmlFor="nombre" className="text-center block">¿Cual es tu nombre?</Label>
+              <Input
+                id="nombre"
+                value={nombreInvitado}
+                onChange={(e) => setNombreInvitado(e.target.value)}
+                placeholder="Nombre"
+                className="text-lg py-4"
+                onKeyPress={(e) => e.key === "Enter" && handleSubmitNombre()}
+              />
+              <Button
+                onClick={handleSubmitNombre}
+                disabled={!nombreInvitado.trim()}
+                className="w-full text-lg py-6 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Continuar
+              </Button>
+            </div>
 
             {/* Reacción tipo Zoom/Meet */}
             <AnimatePresence>
@@ -849,13 +1013,13 @@ export default function EventPage() {
         </section>
       )}
 
-      {/* Sección 6: Nos vemos */}
-      {respuesta === "yes" && nombreInvitado.trim() && (
+      {/* Sección 6: Nos vemos - Solo se muestra después de presionar Continuar */}
+      {respuesta === "yes" && haContinuado && (
         <section
           ref={(el) => {
             sectionRefs.current[6] = el;
           }}
-          className="min-h-[75vh] md:min-h-screen flex items-center justify-center px-4 snap-start py-8 md:py-12"
+          className="min-h-[75vh] md:min-h-screen flex flex-col items-center justify-center px-4 snap-start py-8 md:py-12 relative"
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}

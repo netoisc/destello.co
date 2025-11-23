@@ -7,7 +7,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Billboard, Text, TrackballControls, Sphere } from "@react-three/drei";
 import * as THREE from "three";
 import { supabase } from "@/lib/supabase";
-import StarsBackground from "@/components/stars-background";
+// StarsBackground ya está en el layout global, no necesario importarlo aquí
 
 interface Person {
   nombre: string;
@@ -211,18 +211,16 @@ function PeoplePageContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-white relative">
-        <StarsBackground />
-        <div className="text-xl relative z-10">Cargando invitados...</div>
+      <div className="min-h-screen bg-black flex items-center justify-center text-white relative z-10">
+        <div className="text-xl">Cargando invitados...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-white relative">
-        <StarsBackground />
-        <div className="text-center space-y-4 relative z-10">
+      <div className="min-h-screen bg-black flex items-center justify-center text-white relative z-10">
+        <div className="text-center space-y-4">
           <h2 className="text-2xl font-bold text-red-400">Error</h2>
           <p className="text-white/70">{error}</p>
         </div>
@@ -232,9 +230,8 @@ function PeoplePageContent() {
 
   if (people.length === 0) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-white relative">
-        <StarsBackground />
-        <div className="text-center space-y-4 relative z-10">
+      <div className="min-h-screen bg-black flex items-center justify-center text-white relative z-10">
+        <div className="text-center space-y-4">
           <h2 className="text-2xl font-bold">No tienes acceso</h2>
           <p className="text-white/70">Debes aceptar la invitación para ver los invitados confirmados</p>
         </div>
@@ -244,12 +241,6 @@ function PeoplePageContent() {
 
   return (
     <div className="min-h-screen text-white relative overflow-hidden" style={{ background: 'transparent' }}>
-      {/* Animación de estrellas de fondo */}
-      <div className="fixed inset-0" style={{ zIndex: 1, pointerEvents: 'none' }}>
-        <div style={{ position: 'absolute', inset: 0 }}>
-          <StarsBackground />
-        </div>
-      </div>
 
       {/* Canvas 3D con la esfera */}
       <div className="fixed inset-0 top-20 md:top-24" style={{ zIndex: 2 }}>
@@ -288,9 +279,8 @@ function PeoplePageContent() {
 export default function PeoplePage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-black flex items-center justify-center text-white">
-        <StarsBackground />
-        <div className="text-xl relative z-10">Cargando...</div>
+      <div className="min-h-screen bg-black flex items-center justify-center text-white relative z-10">
+        <div className="text-xl">Cargando...</div>
       </div>
     }>
       <PeoplePageContent />

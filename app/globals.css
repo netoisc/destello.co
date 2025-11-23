@@ -85,6 +85,23 @@ All colors MUST be HSL.
     font-feature-settings: "rlig" 1, "calt" 1;
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
+    /* Prevent zoom on input focus in iOS */
+    touch-action: manipulation;
+  }
+  
+  /* Prevent zoom on input focus in iOS - minimum font-size is 16px */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+  
+  @media (min-width: 768px) {
+    input,
+    textarea,
+    select {
+      font-size: 14px !important;
+    }
   }
   
   html {

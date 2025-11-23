@@ -65,24 +65,24 @@ export default function TimePicker({ value, onChange, label, className }: TimePi
         {showPicker && (
           <>
             <div
-              className="fixed inset-0 z-40"
+              className="fixed inset-0 z-40 bg-black/50"
               onClick={() => setShowPicker(false)}
             />
-            <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-black/90 backdrop-blur-lg border border-purple-500/30 rounded-2xl p-6 shadow-2xl">
-              <div className="flex items-center justify-center gap-6">
+            <div className="fixed bottom-0 left-0 right-0 md:absolute md:bottom-auto md:top-full md:left-0 md:right-0 md:mt-2 z-50 bg-gradient-to-b from-purple-950/95 to-black/95 backdrop-blur-xl border-t md:border border-purple-500/30 rounded-t-3xl md:rounded-2xl p-6 md:p-6 shadow-2xl max-h-[70vh] md:max-h-none">
+              <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6">
                 {/* Hours selector */}
-                <div className="flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-2 w-full md:w-auto">
                   <Label className="text-xs text-gray-400 mb-2">Hora</Label>
-                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500/50 scrollbar-track-transparent">
+                  <div className="flex flex-col gap-1.5 max-h-[200px] md:max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500/50 scrollbar-track-transparent px-2">
                     {Array.from({ length: 24 }, (_, i) => (
                       <button
                         key={i}
                         type="button"
                         onClick={() => handleHourChange(i)}
-                        className={`w-12 h-10 rounded-lg text-sm font-medium transition-all ${
+                        className={`w-14 md:w-12 h-12 md:h-10 rounded-lg text-base md:text-sm font-medium transition-all touch-manipulation ${
                           hours === i
                             ? 'bg-purple-500 text-white scale-110'
-                            : 'text-gray-300 hover:bg-purple-500/20 hover:text-purple-300'
+                            : 'text-gray-300 hover:bg-purple-500/20 hover:text-purple-300 active:bg-purple-500/30'
                         }`}
                       >
                         {i.toString().padStart(2, '0')}
@@ -91,21 +91,21 @@ export default function TimePicker({ value, onChange, label, className }: TimePi
                   </div>
                 </div>
 
-                <span className="text-2xl font-bold text-purple-400">:</span>
+                <span className="text-3xl md:text-2xl font-bold text-purple-400 hidden md:block">:</span>
 
                 {/* Minutes selector */}
-                <div className="flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-2 w-full md:w-auto">
                   <Label className="text-xs text-gray-400 mb-2">Minuto</Label>
-                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500/50 scrollbar-track-transparent">
+                  <div className="flex flex-col gap-1.5 max-h-[200px] md:max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-purple-500/50 scrollbar-track-transparent px-2">
                     {Array.from({ length: 60 }, (_, i) => i).filter((m) => m % 5 === 0).map((minute) => (
                       <button
                         key={minute}
                         type="button"
                         onClick={() => handleMinuteChange(minute)}
-                        className={`w-12 h-10 rounded-lg text-sm font-medium transition-all ${
+                        className={`w-14 md:w-12 h-12 md:h-10 rounded-lg text-base md:text-sm font-medium transition-all touch-manipulation ${
                           minutes === minute
                             ? 'bg-purple-500 text-white scale-110'
-                            : 'text-gray-300 hover:bg-purple-500/20 hover:text-purple-300'
+                            : 'text-gray-300 hover:bg-purple-500/20 hover:text-purple-300 active:bg-purple-500/30'
                         }`}
                       >
                         {minute.toString().padStart(2, '0')}
@@ -114,19 +114,18 @@ export default function TimePicker({ value, onChange, label, className }: TimePi
                   </div>
                 </div>
 
-                {/* Manual input */}
-                <div className="flex flex-col items-center gap-2 ml-4 pl-4 border-l border-white/10">
-                  <Label className="text-xs text-gray-400 mb-2">Formato</Label>
-                  <Input
-                    type="time"
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    className="w-32 bg-black/40 border-purple-500/30 text-white"
-                  />
+                {/* Format display and button */}
+                <div className="flex flex-col md:flex-row items-center gap-3 md:gap-2 w-full md:w-auto md:ml-4 md:pl-4 md:border-l md:border-white/10 pt-4 md:pt-0 border-t md:border-t-0 border-white/10">
+                  <div className="flex flex-col items-center gap-1">
+                    <Label className="text-xs text-gray-400">Formato</Label>
+                    <span className="text-lg md:text-base font-medium text-purple-300">
+                      {displayHour}:{minutes.toString().padStart(2, '0')} {ampm}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowPicker(false)}
-                    className="w-full mt-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-sm font-medium transition-all"
+                    className="w-full md:w-auto px-6 py-3 md:px-4 md:py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl md:rounded-lg text-base md:text-sm font-medium transition-all touch-manipulation"
                   >
                     Aceptar
                   </button>

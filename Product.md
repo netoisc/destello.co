@@ -130,22 +130,27 @@ No se debe almacenar respuestas de invitados quienes no aceptaron.
 
 - Sección, Gracias
 
-Pedir el Nombre del invitado
+subtitulo: Súper bien!, ya casi terminamos...
+------
+>En caso de que hayan colocado opciones para invitados, mostrar las opciones de llevar pero con texto muy amigable
 
->En caso de que hayan colocado opciones para invitados, mostrar:
-
-¿quieres llevar algo?, aqui algunas opciones:
+¿quieres llevar algo?, aqui tienes algunas opciones, pero NTP esto solo es opcional y la idea al final es que la pasemos bien:
 
 Mostrar opciones con un aspecto futurista, y que visualmente se vean como que pueden darle tap/click
 
 >Cuando una invitado selecciona alguna opción se le muestra una reacción como la que se muestra en zoom o google meet cuando alguien reacciona, tipo aplausos o emoji de fiesta
 y se agrega a su lista (usar cookies por si vuelve a entrar que vea detalles del evento y las opciones que elijió para llevar)
+------
+¿Cual es tu nombre?
+Nombe: 
+
+botón de [Continar]
 
 
 - Sección, Nos vemos
 
+> Solo se muestra hasta que el invitado le de Continuar en la sección de arriba (anterior), no debe aparecer en cuanto el usuario escriba su nombre
 Mostrar un mensaje bonito y cool de "Es todo, nos vemos el <fecha>, en <Lugar>"
-
 
 
 ## Modificar evento

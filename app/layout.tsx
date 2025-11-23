@@ -17,6 +17,12 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Destello - Invitaciones que brillan y desaparecen",
   description: "Crea invitaciones cósmicas que brillan y desaparecen después de 24 horas",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
 };
 
 export default function RootLayout({
