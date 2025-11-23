@@ -330,7 +330,7 @@ function PeoplePageContent() {
 
       {/* Chips de opciones seleccionadas debajo de la esfera */}
       {opcionesSeleccionadas.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 z-20">
+        <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 pb-16 md:pb-20 z-20">
           <div className="max-w-7xl mx-auto">
             <p className="text-white/40 text-xs text-center mb-2 font-light">
               Algunos invitados llevarán:

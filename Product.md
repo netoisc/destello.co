@@ -103,14 +103,14 @@ Con animación de scroll hacia abajo por secciones:
 Si hay Anfitriones, Anfitriones: <list-separated-by-comma>
 Confirmados: <numero de los que ya confirmaron incluidos los anfitriones>
 
-- Seccion 1.1, audio
-
-Si hay audio, mostrar control de reproducción
 
 - Sección 2, Detalles del evento
 
 Fecha, hora -> Mostrar qué dia de la semana es. Letras grandes y claras
+Descripción: <mostrar solo si hay>
 Coordenadas: Dirección que haya colocado
+
+>Si hay audio, mostrar control de reproducción
 
 - Sección 3, Confirmación
 

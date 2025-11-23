@@ -62,10 +62,6 @@ export default function EventPage() {
     let nextSection = currentVisibleSection + 1;
     
     // Saltar secciones según el estado
-    if (!eventData?.audio_url && nextSection === 1) {
-      nextSection = 2; // Saltar sección de audio si no existe
-    }
-    
     if (haRespondido && nextSection === 3) {
       // Si ya respondió, ir a la sección correspondiente
       if (respuesta === "yes") {
@@ -90,10 +86,6 @@ export default function EventPage() {
     let prevSection = currentVisibleSection - 1;
     
     // Saltar secciones según el estado
-    if (!eventData?.audio_url && prevSection === 1) {
-      prevSection = 0; // Saltar sección de audio si no existe
-    }
-    
     if (haRespondido && prevSection === 3) {
       prevSection = 2; // Saltar confirmación si ya respondió
     }
@@ -196,7 +188,7 @@ export default function EventPage() {
           const fechaHora = new Date(event.fecha);
           setEventData({
             nombre: event.nombre,
-            descripcion: event.descripcion,
+            descripcion: event.descripcion?.trim() || null,
             anfitriones: event.anfitriones,
             fecha: fechaHora.toISOString().split('T')[0],
             lugar: event.lugar,
@@ -530,10 +522,10 @@ export default function EventPage() {
               </p>
             </div>
 
-            {eventData.descripcion && (
+            {eventData.descripcion && eventData.descripcion.trim().length > 0 && (
               <div>
                 <p className="text-white/60 text-sm mb-1">Descripción</p>
-                <p className="text-white/80">{eventData.descripcion}</p>
+                <p className="text-white/80 whitespace-pre-line">{eventData.descripcion.trim()}</p>
               </div>
             )}
 
@@ -876,69 +868,6 @@ export default function EventPage() {
         </motion.div>
       </section>
 
-      {/* Sección 1.1: Audio */}
-      {eventData.audio_url && (
-        <section
-          ref={(el) => {
-            sectionRefs.current[1] = el;
-          }}
-          className="min-h-[50vh] md:min-h-[60vh] flex flex-col items-center justify-center px-4 snap-start py-8 md:py-12 relative"
-        >
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            className="text-center w-full max-w-md space-y-6"
-          >
-            <p className="text-white/60 text-sm mb-4">Mensaje de voz</p>
-            <audio 
-              controls 
-              className="w-full" 
-              preload="metadata"
-              playsInline
-              src={eventData.audio_url}
-              onLoadedMetadata={(e) => {
-                const audio = e.target as HTMLAudioElement;
-                console.log("Audio metadata loaded:", {
-                  duration: audio.duration,
-                  readyState: audio.readyState,
-                  src: audio.currentSrc
-                });
-              }}
-              onCanPlay={(e) => {
-                console.log("Audio can play");
-              }}
-              onError={(e) => {
-                const audio = e.target as HTMLAudioElement;
-                console.error("Error loading audio:", {
-                  error: audio.error,
-                  code: audio.error?.code,
-                  message: audio.error?.message,
-                  src: audio.src,
-                  currentSrc: audio.currentSrc,
-                  networkState: audio.networkState,
-                  readyState: audio.readyState
-                });
-              }}
-              onEnded={() => {
-                console.log("Audio ended");
-              }}
-            >
-              Tu navegador no soporta el elemento de audio.
-            </audio>
-            
-            {/* Botón para continuar */}
-            <button
-              onClick={goToNextSection}
-              className="flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-white/5 hover:bg-white/10 border border-white/20 transition-all backdrop-blur-sm text-sm text-white/70 hover:text-white mt-4"
-            >
-              Continuar
-              <ArrowDown className="w-4 h-4" strokeWidth={2} />
-            </button>
-          </motion.div>
-        </section>
-      )}
-
       {/* Sección 2: Detalles del evento */}
       <section
         ref={(el) => {
@@ -967,10 +896,61 @@ export default function EventPage() {
                 })}
               </p>
             </div>
+            
+            {/* Descripción solo si existe */}
+            {eventData.descripcion && eventData.descripcion.trim().length > 0 && (
+              <div>
+                <p className="text-white/60 text-sm mb-1">Descripción</p>
+                <p className="text-white/80 whitespace-pre-line">{eventData.descripcion.trim()}</p>
+              </div>
+            )}
+            
             <div>
               <p className="text-white/60 text-sm">Coordenadas</p>
               <p className="text-lg mt-2">{eventData.lugar}</p>
             </div>
+            
+            {/* Audio solo si existe */}
+            {eventData.audio_url && (
+              <div>
+                <p className="text-white/60 text-sm mb-2">Mensaje de voz</p>
+                <audio 
+                  controls 
+                  className="w-full" 
+                  preload="metadata"
+                  playsInline
+                  src={eventData.audio_url}
+                  onLoadedMetadata={(e) => {
+                    const audio = e.target as HTMLAudioElement;
+                    console.log("Audio metadata loaded:", {
+                      duration: audio.duration,
+                      readyState: audio.readyState,
+                      src: audio.currentSrc
+                    });
+                  }}
+                  onCanPlay={(e) => {
+                    console.log("Audio can play");
+                  }}
+                  onError={(e) => {
+                    const audio = e.target as HTMLAudioElement;
+                    console.error("Error loading audio:", {
+                      error: audio.error,
+                      code: audio.error?.code,
+                      message: audio.error?.message,
+                      src: audio.src,
+                      currentSrc: audio.currentSrc,
+                      networkState: audio.networkState,
+                      readyState: audio.readyState
+                    });
+                  }}
+                  onEnded={() => {
+                    console.log("Audio ended");
+                  }}
+                >
+                  Tu navegador no soporta el elemento de audio.
+                </audio>
+              </div>
+            )}
           </div>
           
           {/* Botón para continuar solo si no ha respondido */}
