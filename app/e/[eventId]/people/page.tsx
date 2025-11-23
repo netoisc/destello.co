@@ -4,7 +4,7 @@
 import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useParams } from "next/navigation";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Billboard, Text, TrackballControls } from "@react-three/drei";
+import { Billboard, Text, TrackballControls, Sphere } from "@react-three/drei";
 import * as THREE from "three";
 import { supabase } from "@/lib/supabase";
 import StarsBackground from "@/components/stars-background";
@@ -67,6 +67,30 @@ function Cloud({ people, radius = 20 }: { people: Person[]; radius?: number }) {
   ));
 }
 
+// Componente para el efecto de nubosidad alrededor de la esfera
+function NebulaCloud({ radius }: { radius: number }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  
+  useFrame((state) => {
+    if (meshRef.current) {
+      meshRef.current.rotation.y = state.clock.elapsedTime * 0.05;
+    }
+  });
+
+  return (
+    <Sphere ref={meshRef} args={[radius * 1.15, 32, 32]} position={[0, 0, 0]} renderOrder={-1}>
+      <meshBasicMaterial
+        transparent
+        opacity={0.02}
+        color="#c084fc"
+        side={THREE.BackSide}
+        depthWrite={false}
+        depthTest={false}
+      />
+    </Sphere>
+  );
+}
+
 function SphereScene({ people }: { people: Person[] }) {
   // Calcular radius basado en cantidad, similar al ejemplo
   const radius = useMemo(() => {
@@ -80,9 +104,10 @@ function SphereScene({ people }: { people: Person[] }) {
 
   return (
     <Canvas dpr={[1, 2]} camera={{ position: [0, 0, 35], fov: 90 }}>
-      <fog attach="fog" args={['#202025', 0, 80]} />
+      <fog attach="fog" args={['#000000', 0, 100]} />
       <Suspense fallback={null}>
         <group rotation={[10, 10.5, 10]}>
+          <NebulaCloud radius={radius} />
           <Cloud people={people} radius={radius} />
         </group>
       </Suspense>
@@ -93,7 +118,7 @@ function SphereScene({ people }: { people: Person[] }) {
 
 function PeoplePageContent() {
   const params = useParams();
-  const eventId = params?.eventId as string;
+  const eventId = (params?.eventId || '') as string;
   
   const [people, setPeople] = useState<Person[]>([]);
   const [eventName, setEventName] = useState<string>("");
@@ -186,7 +211,7 @@ function PeoplePageContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#202025] flex items-center justify-center text-white relative">
+      <div className="min-h-screen bg-black flex items-center justify-center text-white relative">
         <StarsBackground />
         <div className="text-xl relative z-10">Cargando invitados...</div>
       </div>
@@ -195,7 +220,7 @@ function PeoplePageContent() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#202025] flex items-center justify-center text-white relative">
+      <div className="min-h-screen bg-black flex items-center justify-center text-white relative">
         <StarsBackground />
         <div className="text-center space-y-4 relative z-10">
           <h2 className="text-2xl font-bold text-red-400">Error</h2>
@@ -207,7 +232,7 @@ function PeoplePageContent() {
 
   if (people.length === 0) {
     return (
-      <div className="min-h-screen bg-[#202025] flex items-center justify-center text-white relative">
+      <div className="min-h-screen bg-black flex items-center justify-center text-white relative">
         <StarsBackground />
         <div className="text-center space-y-4 relative z-10">
           <h2 className="text-2xl font-bold">No tienes acceso</h2>
@@ -218,7 +243,7 @@ function PeoplePageContent() {
   }
 
   return (
-    <div className="min-h-screen text-white relative overflow-hidden" style={{ background: '#202025' }}>
+    <div className="min-h-screen text-white relative overflow-hidden" style={{ background: 'transparent' }}>
       {/* Animación de estrellas de fondo */}
       <div className="fixed inset-0" style={{ zIndex: 1, pointerEvents: 'none' }}>
         <div style={{ position: 'absolute', inset: 0 }}>
@@ -263,7 +288,7 @@ function PeoplePageContent() {
 export default function PeoplePage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#202025] flex items-center justify-center text-white">
+      <div className="min-h-screen bg-black flex items-center justify-center text-white">
         <StarsBackground />
         <div className="text-xl relative z-10">Cargando...</div>
       </div>
