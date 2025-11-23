@@ -178,11 +178,18 @@ export default function EventPage() {
         if (!cancelled) {
           setConfirmados(count + acceptedCount);
           // Guardar invitados con opciones para mostrar en vista del owner
+          // Solo mostrar invitados que eligieron llevar algo
           if (guestsData) {
-            setGuestsWithOptions(guestsData.map((g: any) => ({
-              nombre: g.nombre,
-              opciones_seleccionadas: g.opciones_seleccionadas || []
-            })));
+            const guestsWithSelectedOptions = guestsData
+              .filter((g: any) => {
+                const opciones = g.opciones_seleccionadas || [];
+                return Array.isArray(opciones) && opciones.length > 0;
+              })
+              .map((g: any) => ({
+                nombre: g.nombre,
+                opciones_seleccionadas: g.opciones_seleccionadas || []
+              }));
+            setGuestsWithOptions(guestsWithSelectedOptions);
           }
 
           // Formatear fecha/hora
