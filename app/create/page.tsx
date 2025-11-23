@@ -154,8 +154,9 @@ export default function CreatePage() {
         const newEventId = `sun-${Math.random().toString(36).substring(2, 11)}`;
         const nip = Math.floor(1000 + Math.random() * 9000).toString();
         
-        // Calcular fecha/hora combinada
-        const fechaHora = new Date(`${formData.fecha}T${formData.hora}`);
+        // Calcular fecha/hora combinada (en hora local, luego convertir a ISO para guardar)
+        // formData.fecha es YYYY-MM-DD, formData.hora es HH:MM
+        const fechaHora = new Date(`${formData.fecha}T${formData.hora}:00`);
         
         // Validar que la fecha sea válida y en el futuro
         if (isNaN(fechaHora.getTime())) {

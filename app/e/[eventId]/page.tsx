@@ -194,13 +194,12 @@ export default function EventPage() {
             setGuestsWithOptions(guestsWithSelectedOptions);
           }
 
-          // Formatear fecha/hora
-          const fechaHora = new Date(event.fecha);
+          // Usar la fecha/hora completa del evento (ya está en formato ISO desde la BD)
           setEventData({
             nombre: event.nombre,
             descripcion: event.descripcion?.trim() || null,
             anfitriones: event.anfitriones,
-            fecha: fechaHora.toISOString().split('T')[0],
+            fecha: event.fecha, // event.fecha ya contiene fecha y hora en formato ISO (TIMESTAMPTZ)
             lugar: event.lugar,
             audio_url: event.audio_url,
             opciones_traer: event.opciones_traer || [],
@@ -896,14 +895,15 @@ export default function EventPage() {
             <div>
               <p className="text-white/60 text-sm">Fecha y hora</p>
               <p className="text-2xl font-bold mt-2">
-                {new Date(eventData.fecha).toLocaleString("es-ES", {
+                {eventData.fecha ? new Date(eventData.fecha).toLocaleString("es-ES", {
                   weekday: "long",
                   year: "numeric",
                   month: "long",
                   day: "numeric",
                   hour: "2-digit",
                   minute: "2-digit",
-                })}
+                  timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                }) : "No disponible"}
               </p>
             </div>
             

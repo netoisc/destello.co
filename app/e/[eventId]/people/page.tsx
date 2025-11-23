@@ -209,21 +209,10 @@ function PeoplePageContent() {
 
         if (cancelled) return;
 
-        const peopleList: Person[] = [
-          { nombre: event.owner_nombre, tipo: "owner" as const },
-        ];
+        // Solo mostrar los que confirmaron realmente (no incluir owner ni anfitriones automáticamente)
+        const peopleList: Person[] = [];
 
-        if (event.anfitriones) {
-          event.anfitriones
-            .split(",")
-            .map((a: string) => a.trim())
-            .filter(Boolean)
-            .forEach((nombre: string) => {
-              peopleList.push({ nombre, tipo: "anfitrion" as const });
-            });
-        }
-
-        if (guests) {
+        if (guests && guests.length > 0) {
           guests.forEach((g) => {
             peopleList.push({ nombre: g.nombre, tipo: "invitado" as const });
           });
@@ -283,12 +272,15 @@ function PeoplePageContent() {
     );
   }
 
+  // Mostrar mensaje si no hay confirmaciones
   if (people.length === 0) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white relative z-10">
         <div className="text-center space-y-4">
-          <h2 className="text-2xl font-bold">No tienes acceso</h2>
-          <p className="text-white/70">Debes aceptar la invitación para ver los invitados confirmados</p>
+          <h2 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            Esperando confirmaciones
+          </h2>
+          <p className="text-white/60 text-sm md:text-base">Aún no hay invitados confirmados para este evento</p>
         </div>
       </div>
     );
