@@ -298,45 +298,58 @@ function PeoplePageContent() {
     <div className="min-h-screen text-white relative overflow-hidden" style={{ background: 'transparent' }}>
 
       {/* Canvas 3D con la esfera */}
-      <div className="fixed inset-0 top-20 md:top-24" style={{ zIndex: 2 }}>
+      <div className="fixed inset-0 top-28 md:top-24" style={{ zIndex: 2 }}>
         <SphereScene people={people} />
       </div>
 
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 p-4 md:p-6" style={{ zIndex: 30 }}>
-        <div className="max-w-7xl mx-auto space-y-4">
+      <div className="absolute top-0 left-0 right-0 p-3 md:p-6" style={{ zIndex: 30 }}>
+        <div className="max-w-7xl mx-auto space-y-2 md:space-y-4">
           <div>
-            <h1 className="text-lg md:text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <h1 className="text-base md:text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent leading-tight">
               {eventName}
             </h1>
             {eventDate && (
-              <p className="text-white/60 text-xs md:text-sm mt-1">
-                {new Date(eventDate).toLocaleDateString("es-ES", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
+              <>
+                {/* Formato compacto para móvil */}
+                <p className="text-white/60 text-[10px] md:hidden mt-0.5 leading-tight">
+                  {new Date(eventDate).toLocaleDateString("es-ES", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+                {/* Formato completo para desktop */}
+                <p className="hidden md:block text-white/60 text-sm mt-1 leading-tight">
+                  {new Date(eventDate).toLocaleDateString("es-ES", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </>
             )}
           </div>
           
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-3">
-              <div className="h-px bg-gradient-to-r from-transparent via-purple-500/60 to-purple-500/30 flex-1 max-w-16" />
-              <h2 className="text-xs md:text-sm font-semibold text-white/90 tracking-[0.2em] uppercase">
+          <div className="flex flex-col gap-1 md:gap-2">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="h-px bg-gradient-to-r from-transparent via-purple-500/60 to-purple-500/30 flex-1 max-w-12 md:max-w-16" />
+              <h2 className="text-[10px] md:text-sm font-semibold text-white/90 tracking-[0.15em] md:tracking-[0.2em] uppercase">
                 Personas que asistirán
               </h2>
-              <div className="h-px bg-gradient-to-r from-pink-500/30 via-pink-500/60 to-transparent flex-1 max-w-16" />
+              <div className="h-px bg-gradient-to-r from-pink-500/30 via-pink-500/60 to-transparent flex-1 max-w-12 md:max-w-16" />
             </div>
-            <div className="flex items-center justify-center gap-2">
-              <div className="w-1 h-1 rounded-full bg-purple-400 animate-pulse" />
-              <span className="text-sm md:text-base text-purple-300 font-mono tabular-nums tracking-wider">
+            <div className="flex items-center justify-center gap-1.5 md:gap-2">
+              <div className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-purple-400 animate-pulse" />
+              <span className="text-xs md:text-base text-purple-300 font-mono tabular-nums tracking-wider">
                 {people.length} {people.length === 1 ? "confirmado" : "confirmados"}
               </span>
-              <div className="w-1 h-1 rounded-full bg-pink-400 animate-pulse" style={{ animationDelay: '0.5s' }} />
+              <div className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-pink-400 animate-pulse" style={{ animationDelay: '0.5s' }} />
             </div>
           </div>
         </div>
@@ -344,12 +357,12 @@ function PeoplePageContent() {
 
       {/* Chips de opciones seleccionadas y no seleccionadas debajo de la esfera */}
       {(opcionesSeleccionadas.length > 0 || todasLasOpciones.length > 0) && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 pb-16 md:pb-20 z-20">
-          <div className="max-w-7xl mx-auto space-y-4">
+        <div className="fixed bottom-0 left-0 right-0 p-3 md:p-6 pb-20 md:pb-20 z-20">
+          <div className="max-w-7xl mx-auto space-y-3 md:space-y-4">
             {/* Opciones seleccionadas */}
             {opcionesSeleccionadas.length > 0 && (
               <div>
-                <p className="text-white/40 text-xs text-center mb-2 font-light">
+                <p className="text-white/40 text-[10px] md:text-xs text-center mb-1.5 md:mb-2 font-light">
                   Algunos invitados llevarán:
                 </p>
                 <div className="flex flex-wrap gap-1.5 justify-center">
@@ -374,7 +387,7 @@ function PeoplePageContent() {
               
               return opcionesNoSeleccionadas.length > 0 ? (
                 <div>
-                  <p className="text-white/30 text-xs text-center mb-2 font-light">
+                  <p className="text-white/30 text-[10px] md:text-xs text-center mb-1.5 md:mb-2 font-light">
                     Cosas que nadie ha elegido 🥲, pero aún puedes llevar 😍
                   </p>
                   <div className="flex flex-wrap gap-1.5 justify-center">
