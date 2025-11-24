@@ -121,9 +121,11 @@ function PeoplePageContent() {
   
   const [people, setPeople] = useState<Person[]>([]);
   const [eventName, setEventName] = useState<string>("");
+  const [eventDate, setEventDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [opcionesSeleccionadas, setOpcionesSeleccionadas] = useState<string[]>([]);
+  const [todasLasOpciones, setTodasLasOpciones] = useState<string[]>([]);
 
   // Prevenir back button y verificar cookies al cargar
   useEffect(() => {
@@ -232,10 +234,16 @@ function PeoplePageContent() {
           });
         }
 
+        // Obtener todas las opciones disponibles del evento
+        const opcionesEvento = (event.opciones_traer || []) as string[];
+        const opcionesSeleccionadasArray = Array.from(todasOpciones);
+
         if (!cancelled) {
           setEventName(event.nombre);
+          setEventDate(event.fecha);
           setPeople(peopleList);
-          setOpcionesSeleccionadas(Array.from(todasOpciones));
+          setOpcionesSeleccionadas(opcionesSeleccionadasArray);
+          setTodasLasOpciones(opcionesEvento);
           setLoading(false);
         }
       } catch (err: any) {
@@ -297,9 +305,23 @@ function PeoplePageContent() {
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 p-4 md:p-6" style={{ zIndex: 30 }}>
         <div className="max-w-7xl mx-auto space-y-4">
-          <h1 className="text-lg md:text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            {eventName}
-          </h1>
+          <div>
+            <h1 className="text-lg md:text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              {eventName}
+            </h1>
+            {eventDate && (
+              <p className="text-white/60 text-xs md:text-sm mt-1">
+                {new Date(eventDate).toLocaleDateString("es-ES", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            )}
+          </div>
           
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-3">
@@ -320,23 +342,55 @@ function PeoplePageContent() {
         </div>
       </div>
 
-      {/* Chips de opciones seleccionadas debajo de la esfera */}
-      {opcionesSeleccionadas.length > 0 && (
+      {/* Chips de opciones seleccionadas y no seleccionadas debajo de la esfera */}
+      {(opcionesSeleccionadas.length > 0 || todasLasOpciones.length > 0) && (
         <div className="fixed bottom-0 left-0 right-0 p-4 md:p-6 pb-16 md:pb-20 z-20">
-          <div className="max-w-7xl mx-auto">
-            <p className="text-white/40 text-xs text-center mb-2 font-light">
-              Algunos invitados llevarán:
-            </p>
-            <div className="flex flex-wrap gap-2 justify-center">
-              {opcionesSeleccionadas.map((opcion, index) => (
-                <span
-                  key={index}
-                  className="px-3 py-1.5 bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-500/50 rounded-full text-sm text-white/90 backdrop-blur-sm"
-                >
-                  {opcion}
-                </span>
-              ))}
-            </div>
+          <div className="max-w-7xl mx-auto space-y-4">
+            {/* Opciones seleccionadas */}
+            {opcionesSeleccionadas.length > 0 && (
+              <div>
+                <p className="text-white/40 text-xs text-center mb-2 font-light">
+                  Algunos invitados llevarán:
+                </p>
+                <div className="flex flex-wrap gap-1.5 justify-center">
+                  {opcionesSeleccionadas.map((opcion, index) => (
+                    <span
+                      key={index}
+                      className="px-2.85 py-1.425 bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-500/50 rounded-full text-white/90 backdrop-blur-sm"
+                      style={{ fontSize: 'calc(0.875rem * 0.95)', padding: 'calc(0.375rem * 0.95) calc(0.75rem * 0.95)' }}
+                    >
+                      {opcion}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Opciones no seleccionadas */}
+            {(() => {
+              const opcionesNoSeleccionadas = todasLasOpciones.filter(
+                opcion => opcion && opcion.trim() && !opcionesSeleccionadas.includes(opcion.trim())
+              );
+              
+              return opcionesNoSeleccionadas.length > 0 ? (
+                <div>
+                  <p className="text-white/30 text-xs text-center mb-2 font-light">
+                    Cosas que nadie ha elegido 🥲, pero aún puedes llevar 😍
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 justify-center">
+                    {opcionesNoSeleccionadas.map((opcion, index) => (
+                      <span
+                        key={index}
+                        className="px-2.85 py-1.425 bg-white/5 border border-white/10 rounded-full text-white/50 backdrop-blur-sm"
+                        style={{ fontSize: 'calc(0.875rem * 0.95)', padding: 'calc(0.375rem * 0.95) calc(0.75rem * 0.95)' }}
+                      >
+                        {opcion.trim()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            })()}
           </div>
         </div>
       )}
