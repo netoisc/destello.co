@@ -7,8 +7,6 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Billboard, Text, TrackballControls, Sphere } from "@react-three/drei";
 import * as THREE from "three";
 import { supabase } from "@/lib/supabase";
-import { motion } from "framer-motion";
-import { ArrowDown } from "lucide-react";
 
 interface Person {
   nombre: string;
@@ -297,115 +295,110 @@ function PeoplePageContent() {
   }
 
   return (
-    <div className="min-h-screen text-white relative" style={{ background: 'transparent' }}>
-      {/* Header sticky */}
-      <div className="sticky top-0 z-30 p-3 md:p-6 bg-black/20 backdrop-blur-sm border-b border-white/5">
-        <div className="max-w-7xl mx-auto space-y-2 md:space-y-4">
-          <div>
-            <h1 className="text-base md:text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent leading-tight">
-              {eventName}
-            </h1>
-            {eventDate && (
-              <>
-                {/* Formato compacto para móvil */}
-                <p className="text-white/60 text-[10px] md:hidden mt-0.5 leading-tight">
-                  {new Date(eventDate).toLocaleDateString("es-ES", {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-                {/* Formato completo para desktop */}
-                <p className="hidden md:block text-white/60 text-sm mt-1 leading-tight">
-                  {new Date(eventDate).toLocaleDateString("es-ES", {
-                    weekday: "long",
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
-              </>
-            )}
-          </div>
-          
-          <div className="flex flex-col gap-1 md:gap-2">
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="h-px bg-gradient-to-r from-transparent via-purple-500/60 to-purple-500/30 flex-1 max-w-12 md:max-w-16" />
-              <h2 className="text-[10px] md:text-sm font-semibold text-white/90 tracking-[0.15em] md:tracking-[0.2em] uppercase">
-                Personas que asistirán
-              </h2>
-              <div className="h-px bg-gradient-to-r from-pink-500/30 via-pink-500/60 to-transparent flex-1 max-w-12 md:max-w-16" />
+    <div className="min-h-screen text-white relative overflow-x-hidden" style={{ background: 'transparent' }}>
+      {/* Header elegante y espacioso */}
+      <div className="sticky top-0 z-30 p-4 md:p-6 lg:p-8 bg-black/40 backdrop-blur-lg border-b border-white/10">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
+            <div className="flex-1">
+              <h1 className="text-lg md:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent leading-tight">
+                {eventName}
+              </h1>
+              {eventDate && (
+                <>
+                  {/* Formato compacto para móvil */}
+                  <p className="text-white/60 text-[10px] md:hidden mt-1 leading-tight">
+                    {new Date(eventDate).toLocaleDateString("es-ES", {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  {/* Formato completo para desktop */}
+                  <p className="hidden md:block text-white/60 text-sm lg:text-base mt-2 leading-tight">
+                    {new Date(eventDate).toLocaleDateString("es-ES", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </>
+              )}
             </div>
-            <div className="flex items-center justify-center gap-1.5 md:gap-2">
-              <div className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-purple-400 animate-pulse" />
-              <span className="text-xs md:text-base text-purple-300 font-mono tabular-nums tracking-wider">
+            <div className="flex items-center gap-3">
+              <div className="h-px bg-gradient-to-r from-transparent via-purple-500/60 to-purple-500/30 flex-1 max-w-8 md:max-w-16 lg:max-w-24" />
+              <span className="text-xs md:text-sm lg:text-base text-purple-300 font-mono tabular-nums whitespace-nowrap">
                 {people.length} {people.length === 1 ? "confirmado" : "confirmados"}
               </span>
-              <div className="w-0.5 h-0.5 md:w-1 md:h-1 rounded-full bg-pink-400 animate-pulse" style={{ animationDelay: '0.5s' }} />
+              <div className="h-px bg-gradient-to-r from-pink-500/30 via-pink-500/60 to-transparent flex-1 max-w-8 md:max-w-16 lg:max-w-24" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Canvas 3D con la esfera - altura relativa al viewport */}
-      <div className="relative w-full" style={{ height: '70vh', minHeight: '400px', maxHeight: 'calc(100vh - 180px)' }}>
-        <SphereScene people={people} />
-      </div>
+      {/* Contenedor principal - diseño elegante para desktop */}
+      <div className="relative min-h-[calc(100vh-120px)] md:min-h-[calc(100vh-160px)]">
+        {/* Esfera 3D - tamaño generoso en desktop, compacta en móvil */}
+        <div className="relative w-full mx-auto h-[50vh] min-h-[350px] md:h-[65vh] md:min-h-[500px] md:max-h-[700px]">
+          <SphereScene people={people} />
+        </div>
 
-      {/* Chips de opciones - área scrollable con espacio para footer */}
-      {(opcionesSeleccionadas.length > 0 || todasLasOpciones.length > 0) && (
-        <div className="relative w-full p-4 md:p-6 pb-24 md:pb-24">
-          <div className="max-w-7xl mx-auto space-y-4 md:space-y-5">
-            {/* Opciones seleccionadas */}
-            {opcionesSeleccionadas.length > 0 && (
-              <div>
-                <p className="text-white/40 text-[10px] md:text-xs text-center mb-2 md:mb-3 font-light">
-                  Algunos invitados llevarán:
-                </p>
-                <div className="flex flex-wrap gap-1.5 justify-center">
-                  {opcionesSeleccionadas.map((opcion, index) => (
-                    <span
-                      key={index}
-                      className="bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-500/50 rounded-full text-white/90 backdrop-blur-sm text-[11.4px] md:text-[12.6px] px-[5.94px] py-[2.38px] md:px-[6.21px] md:py-[2.82px] leading-tight"
-                    >
-                      {opcion}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Opciones no seleccionadas */}
-            {(() => {
-              const opcionesNoSeleccionadas = todasLasOpciones.filter(
-                opcion => opcion && opcion.trim() && !opcionesSeleccionadas.includes(opcion.trim())
-              );
-              
-              return opcionesNoSeleccionadas.length > 0 ? (
+        {/* Chips - diseño elegante y espacioso */}
+        {(opcionesSeleccionadas.length > 0 || todasLasOpciones.length > 0) && (
+          <div className="relative w-full px-4 md:px-8 lg:px-12 pt-6 md:pt-8 lg:pt-10 pb-20 md:pb-24">
+            <div className="max-w-6xl mx-auto space-y-5 md:space-y-6 lg:space-y-8">
+              {/* Opciones seleccionadas */}
+              {opcionesSeleccionadas.length > 0 && (
                 <div>
-                  <p className="text-white/30 text-[10px] md:text-xs text-center mb-2 md:mb-3 font-light">
-                    Cosas que nadie ha elegido 🥲, pero aún puedes llevar 😍
+                  <p className="text-white/50 text-xs md:text-sm lg:text-base text-center mb-3 md:mb-4 lg:mb-5 font-light">
+                    Algunos invitados llevarán:
                   </p>
-                  <div className="flex flex-wrap gap-1.5 justify-center">
-                    {opcionesNoSeleccionadas.map((opcion, index) => (
+                  <div className="flex flex-wrap gap-2 md:gap-3 justify-center">
+                    {opcionesSeleccionadas.map((opcion, index) => (
                       <span
                         key={index}
-                        className="bg-white/5 border border-white/10 rounded-full text-white/50 backdrop-blur-sm text-[11.4px] md:text-[12.6px] px-[5.94px] py-[2.38px] md:px-[6.21px] md:py-[2.82px] leading-tight"
+                        className="bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-500/50 rounded-full text-white/90 backdrop-blur-sm text-xs md:text-sm lg:text-base px-3 py-1.5 md:px-4 md:py-2 lg:px-5 lg:py-2.5 leading-tight"
                       >
-                        {opcion.trim()}
+                        {opcion}
                       </span>
                     ))}
                   </div>
                 </div>
-              ) : null;
-            })()}
+              )}
+              
+              {/* Opciones no seleccionadas */}
+              {(() => {
+                const opcionesNoSeleccionadas = todasLasOpciones.filter(
+                  opcion => opcion && opcion.trim() && !opcionesSeleccionadas.includes(opcion.trim())
+                );
+                
+                return opcionesNoSeleccionadas.length > 0 ? (
+                  <div>
+                    <p className="text-white/40 text-xs md:text-sm lg:text-base text-center mb-3 md:mb-4 lg:mb-5 font-light">
+                      Cosas que nadie ha elegido 🥲, pero aún puedes llevar 😍
+                    </p>
+                    <div className="flex flex-wrap gap-2 md:gap-3 justify-center">
+                      {opcionesNoSeleccionadas.map((opcion, index) => (
+                        <span
+                          key={index}
+                          className="bg-white/5 border border-white/10 rounded-full text-white/60 backdrop-blur-sm text-xs md:text-sm lg:text-base px-3 py-1.5 md:px-4 md:py-2 lg:px-5 lg:py-2.5 leading-tight"
+                        >
+                          {opcion.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
