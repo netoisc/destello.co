@@ -297,9 +297,9 @@ function PeoplePageContent() {
   }
 
   return (
-    <div className="min-h-screen text-white relative overflow-hidden" style={{ background: 'transparent' }}>
-      {/* Header - posición absoluta sobre todo */}
-      <div className="absolute top-0 left-0 right-0 p-3 md:p-6 z-30">
+    <div className="min-h-screen text-white relative" style={{ background: 'transparent' }}>
+      {/* Header sticky */}
+      <div className="sticky top-0 z-30 p-3 md:p-6 bg-black/20 backdrop-blur-sm border-b border-white/5">
         <div className="max-w-7xl mx-auto space-y-2 md:space-y-4">
           <div>
             <h1 className="text-base md:text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent leading-tight">
@@ -351,19 +351,19 @@ function PeoplePageContent() {
         </div>
       </div>
 
-      {/* Canvas 3D con la esfera - altura relativa al viewport, más compacta en desktop */}
-      <div className="fixed inset-0 top-28 md:top-24 bottom-auto" style={{ height: '70vh', minHeight: '400px', maxHeight: 'calc(100vh - 200px)' }}>
+      {/* Canvas 3D con la esfera - altura relativa al viewport */}
+      <div className="relative w-full" style={{ height: '70vh', minHeight: '400px', maxHeight: 'calc(100vh - 180px)' }}>
         <SphereScene people={people} />
       </div>
 
-      {/* Chips de opciones seleccionadas y no seleccionadas - siempre visibles en la parte inferior */}
+      {/* Chips de opciones - área scrollable con espacio para footer */}
       {(opcionesSeleccionadas.length > 0 || todasLasOpciones.length > 0) && (
-        <div className="fixed bottom-0 left-0 right-0 p-3 md:p-6 pb-20 md:pb-6 z-20">
-          <div className="max-w-7xl mx-auto space-y-3 md:space-y-4">
+        <div className="relative w-full p-4 md:p-6 pb-24 md:pb-24">
+          <div className="max-w-7xl mx-auto space-y-4 md:space-y-5">
             {/* Opciones seleccionadas */}
             {opcionesSeleccionadas.length > 0 && (
               <div>
-                <p className="text-white/40 text-[10px] md:text-xs text-center mb-1.5 md:mb-2 font-light">
+                <p className="text-white/40 text-[10px] md:text-xs text-center mb-2 md:mb-3 font-light">
                   Algunos invitados llevarán:
                 </p>
                 <div className="flex flex-wrap gap-1.5 justify-center">
@@ -387,7 +387,7 @@ function PeoplePageContent() {
               
               return opcionesNoSeleccionadas.length > 0 ? (
                 <div>
-                  <p className="text-white/30 text-[10px] md:text-xs text-center mb-1.5 md:mb-2 font-light">
+                  <p className="text-white/30 text-[10px] md:text-xs text-center mb-2 md:mb-3 font-light">
                     Cosas que nadie ha elegido 🥲, pero aún puedes llevar 😍
                   </p>
                   <div className="flex flex-wrap gap-1.5 justify-center">
