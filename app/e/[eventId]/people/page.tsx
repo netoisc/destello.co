@@ -7,6 +7,8 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Billboard, Text, TrackballControls, Sphere } from "@react-three/drei";
 import * as THREE from "three";
 import { supabase } from "@/lib/supabase";
+import { motion } from "framer-motion";
+import { ArrowDown } from "lucide-react";
 
 interface Person {
   nombre: string;
@@ -295,15 +297,9 @@ function PeoplePageContent() {
   }
 
   return (
-    <div className="min-h-screen text-white relative overflow-hidden" style={{ background: 'transparent' }}>
-
-      {/* Canvas 3D con la esfera */}
-      <div className="fixed inset-0 top-28 md:top-24" style={{ zIndex: 2 }}>
-        <SphereScene people={people} />
-      </div>
-
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 p-3 md:p-6" style={{ zIndex: 30 }}>
+    <div className="min-h-screen text-white relative overflow-hidden flex flex-col" style={{ background: 'transparent' }}>
+      {/* Header - posición absoluta sobre todo */}
+      <div className="absolute top-0 left-0 right-0 p-3 md:p-6 z-30">
         <div className="max-w-7xl mx-auto space-y-2 md:space-y-4">
           <div>
             <h1 className="text-base md:text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent leading-tight">
@@ -355,58 +351,66 @@ function PeoplePageContent() {
         </div>
       </div>
 
-      {/* Chips de opciones seleccionadas y no seleccionadas debajo de la esfera */}
-      {(opcionesSeleccionadas.length > 0 || todasLasOpciones.length > 0) && (
-        <div className="fixed bottom-0 left-0 right-0 p-3 md:p-6 pb-20 md:pb-20 z-20">
-          <div className="max-w-7xl mx-auto space-y-3 md:space-y-4">
-            {/* Opciones seleccionadas */}
-            {opcionesSeleccionadas.length > 0 && (
-              <div>
-                <p className="text-white/40 text-[10px] md:text-xs text-center mb-1.5 md:mb-2 font-light">
-                  Algunos invitados llevarán:
-                </p>
-                <div className="flex flex-wrap gap-1.5 justify-center">
-                  {opcionesSeleccionadas.map((opcion, index) => (
-                    <span
-                      key={index}
-                      className="px-2.85 py-1.425 bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-500/50 rounded-full text-white/90 backdrop-blur-sm"
-                      style={{ fontSize: 'calc(0.875rem * 0.95)', padding: 'calc(0.375rem * 0.95) calc(0.75rem * 0.95)' }}
-                    >
-                      {opcion}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Opciones no seleccionadas */}
-            {(() => {
-              const opcionesNoSeleccionadas = todasLasOpciones.filter(
-                opcion => opcion && opcion.trim() && !opcionesSeleccionadas.includes(opcion.trim())
-              );
-              
-              return opcionesNoSeleccionadas.length > 0 ? (
+      {/* Contenedor principal con flex: esfera arriba, chips abajo */}
+      <div className="flex flex-col flex-1 min-h-0 pt-28 md:pt-32">
+        {/* Canvas 3D con la esfera - altura relativa al viewport, más compacta en desktop */}
+        <div className="relative flex-shrink-0 h-[70vh] min-h-[400px] md:h-[60vh] md:max-h-[600px]">
+          <SphereScene people={people} />
+        </div>
+
+        {/* Chips de opciones seleccionadas y no seleccionadas - ocupa el espacio restante */}
+        {(opcionesSeleccionadas.length > 0 || todasLasOpciones.length > 0) && (
+          <div className="flex-shrink-0 p-4 md:p-6 pb-20 md:pb-6">
+            <div className="max-w-7xl mx-auto space-y-3 md:space-y-4">
+              {/* Opciones seleccionadas */}
+              {opcionesSeleccionadas.length > 0 && (
                 <div>
-                  <p className="text-white/30 text-[10px] md:text-xs text-center mb-1.5 md:mb-2 font-light">
-                    Cosas que nadie ha elegido 🥲, pero aún puedes llevar 😍
+                  <p className="text-white/40 text-[10px] md:text-xs text-center mb-1.5 md:mb-2 font-light">
+                    Algunos invitados llevarán:
                   </p>
                   <div className="flex flex-wrap gap-1.5 justify-center">
-                    {opcionesNoSeleccionadas.map((opcion, index) => (
+                    {opcionesSeleccionadas.map((opcion, index) => (
                       <span
                         key={index}
-                        className="px-2.85 py-1.425 bg-white/5 border border-white/10 rounded-full text-white/50 backdrop-blur-sm"
+                        className="px-2.85 py-1.425 bg-gradient-to-r from-purple-500/30 to-pink-500/30 border border-purple-500/50 rounded-full text-white/90 backdrop-blur-sm"
                         style={{ fontSize: 'calc(0.875rem * 0.95)', padding: 'calc(0.375rem * 0.95) calc(0.75rem * 0.95)' }}
                       >
-                        {opcion.trim()}
+                        {opcion}
                       </span>
                     ))}
                   </div>
                 </div>
-              ) : null;
-            })()}
+              )}
+              
+              {/* Opciones no seleccionadas */}
+              {(() => {
+                const opcionesNoSeleccionadas = todasLasOpciones.filter(
+                  opcion => opcion && opcion.trim() && !opcionesSeleccionadas.includes(opcion.trim())
+                );
+                
+                return opcionesNoSeleccionadas.length > 0 ? (
+                  <div>
+                    <p className="text-white/30 text-[10px] md:text-xs text-center mb-1.5 md:mb-2 font-light">
+                      Cosas que nadie ha elegido 🥲, pero aún puedes llevar 😍
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 justify-center">
+                      {opcionesNoSeleccionadas.map((opcion, index) => (
+                        <span
+                          key={index}
+                          className="px-2.85 py-1.425 bg-white/5 border border-white/10 rounded-full text-white/50 backdrop-blur-sm"
+                          style={{ fontSize: 'calc(0.875rem * 0.95)', padding: 'calc(0.375rem * 0.95) calc(0.75rem * 0.95)' }}
+                        >
+                          {opcion.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
