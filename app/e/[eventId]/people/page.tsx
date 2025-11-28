@@ -126,6 +126,7 @@ function PeoplePageContent() {
   const [error, setError] = useState<string | null>(null);
   const [opcionesSeleccionadas, setOpcionesSeleccionadas] = useState<string[]>([]);
   const [todasLasOpciones, setTodasLasOpciones] = useState<string[]>([]);
+  const [eventStatus, setEventStatus] = useState<"past" | "today" | "future" | null>(null);
 
   // Prevenir back button y verificar cookies al cargar
   useEffect(() => {
@@ -244,6 +245,9 @@ function PeoplePageContent() {
           setPeople(peopleList);
           setOpcionesSeleccionadas(opcionesSeleccionadasArray);
           setTodasLasOpciones(opcionesEvento);
+          
+          // No calculamos aquí, lo haremos en un useEffect separado para actualización en tiempo real
+          
           setLoading(false);
         }
       } catch (err: any) {
@@ -261,6 +265,26 @@ function PeoplePageContent() {
     };
   }, [eventId]);
 
+  // Verificar estado del evento (pasado, hoy, futuro)
+  useEffect(() => {
+    if (!eventDate) return;
+
+    const eventDateObj = new Date(eventDate);
+    const today = new Date();
+    
+    // Normalizar a solo fecha (sin hora)
+    const eventDay = new Date(eventDateObj.getFullYear(), eventDateObj.getMonth(), eventDateObj.getDate());
+    const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    if (eventDay < todayDay) {
+      setEventStatus("past");
+    } else if (eventDay.getTime() === todayDay.getTime()) {
+      setEventStatus("today");
+    } else {
+      setEventStatus("future");
+    }
+  }, [eventDate]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white relative z-10">
@@ -275,6 +299,22 @@ function PeoplePageContent() {
         <div className="text-center space-y-4">
           <h2 className="text-2xl font-bold text-red-400">Error</h2>
           <p className="text-white/70">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar mensaje si el evento ya pasó
+  if (eventStatus === "past") {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center relative overflow-hidden">
+        <div className="text-center space-y-4 z-10">
+          <h2 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+            El evento ya pasó
+          </h2>
+          <p className="text-white/70 text-lg md:text-xl">
+            Este momento ya quedó en el universo...
+          </p>
         </div>
       </div>
     );
@@ -332,9 +372,19 @@ function PeoplePageContent() {
             </div>
             <div className="flex items-center gap-3">
               <div className="h-px bg-gradient-to-r from-transparent via-purple-500/60 to-purple-500/30 flex-1 max-w-8 md:max-w-16 lg:max-w-24" />
-              <span className="text-xs md:text-sm lg:text-base text-purple-300 font-mono tabular-nums whitespace-nowrap">
-                {people.length} {people.length === 1 ? "confirmado" : "confirmados"}
-              </span>
+              <div className="flex flex-col md:flex-row items-center gap-2 md:gap-4">
+                <span className="text-xs md:text-sm lg:text-base text-purple-300 font-mono tabular-nums whitespace-nowrap">
+                  {people.length} {people.length === 1 ? "confirmado" : "confirmados"}
+                </span>
+                {eventStatus === "today" && (
+                  <>
+                    <div className="h-3 w-px bg-white/20 hidden md:block" />
+                    <span className="text-xs md:text-sm lg:text-base text-pink-300 font-semibold whitespace-nowrap">
+                      ¡Hoy!
+                    </span>
+                  </>
+                )}
+              </div>
               <div className="h-px bg-gradient-to-r from-pink-500/30 via-pink-500/60 to-transparent flex-1 max-w-8 md:max-w-16 lg:max-w-24" />
             </div>
           </div>
