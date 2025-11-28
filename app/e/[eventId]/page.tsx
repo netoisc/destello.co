@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase";
 import { ChevronDown, ArrowDown, ArrowUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Toast } from "@/components/ui/toast";
+import { Upload, X, Image as ImageIcon } from "lucide-react";
 
 interface EventData {
   nombre: string;
@@ -20,6 +21,215 @@ interface EventData {
   lugar: string;
   audio_url: string | null;
   opciones_traer: string[];
+  banners: string[] | null;
+}
+
+// Componente para manejar banners
+function BannerManager({ eventId, currentBanners, onBannersUpdate }: { eventId: string; currentBanners: string[]; onBannersUpdate?: (newBanners: string[]) => void }) {
+  const [banners, setBanners] = useState<string[]>(currentBanners);
+  
+  // Sincronizar con props cuando cambien
+  useEffect(() => {
+    setBanners(currentBanners);
+  }, [currentBanners]);
+  const [uploading, setUploading] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState<"success" | "error">("success");
+  const [showToast, setShowToast] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const showToastMessage = (message: string, type: "success" | "error" = "success") => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+
+    try {
+      const newBannerUrls: string[] = [];
+
+      for (const file of Array.from(files)) {
+        // Validar que sea una imagen
+        if (!file.type.startsWith('image/')) {
+          showToastMessage("Solo se permiten archivos de imagen", "error");
+          continue;
+        }
+
+        // Validar tamaño (máximo 3MB - límite para plan gratuito)
+        const maxSize = 3 * 1024 * 1024; // 3MB en bytes
+        if (file.size > maxSize) {
+          showToastMessage(`La imagen ${file.name} es muy grande. Máximo 3MB`, "error");
+          continue;
+        }
+
+        // Generar nombre único
+        const timestamp = Date.now();
+        const fileExtension = file.name.split('.').pop() || 'jpg';
+        const fileName = `${eventId}/banner_${timestamp}.${fileExtension}`;
+
+        // Subir a Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('banners')
+          .upload(fileName, file, {
+            contentType: file.type,
+            upsert: false,
+            cacheControl: '3600',
+          });
+
+        if (uploadError) {
+          console.error("Error uploading banner:", uploadError);
+          showToastMessage(`Error al subir ${file.name}`, "error");
+          continue;
+        }
+
+        if (uploadData) {
+          const { data: urlData } = supabase.storage
+            .from('banners')
+            .getPublicUrl(fileName);
+          newBannerUrls.push(urlData.publicUrl);
+        }
+      }
+
+      if (newBannerUrls.length > 0) {
+        // Actualizar en BD
+        const updatedBanners = [...banners, ...newBannerUrls];
+        const { error: updateError } = await supabase
+          .from("events")
+          .update({ banners: updatedBanners })
+          .eq("id", eventId);
+
+        if (updateError) {
+          console.error("Error updating banners:", updateError);
+          showToastMessage("Error al guardar banners", "error");
+        } else {
+          setBanners(updatedBanners);
+          // Notificar al componente padre para actualizar eventData
+          if (onBannersUpdate) {
+            onBannersUpdate(updatedBanners);
+          }
+          showToastMessage(`${newBannerUrls.length} banner${newBannerUrls.length > 1 ? 's' : ''} agregado${newBannerUrls.length > 1 ? 's' : ''}`);
+        }
+      }
+    } catch (error: any) {
+      console.error("Error uploading banners:", error);
+      showToastMessage("Error al subir banners", "error");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveBanner = async (index: number) => {
+    const bannerToRemove = banners[index];
+    
+    // Extraer el path del URL (ej: banners/eventId/banner_timestamp.jpg)
+    const urlParts = bannerToRemove.split('/');
+    const fileName = urlParts.slice(-2).join('/'); // eventId/banner_timestamp.jpg
+
+    try {
+      // Eliminar de Storage
+      const { error: deleteError } = await supabase.storage
+        .from('banners')
+        .remove([fileName]);
+
+      if (deleteError) {
+        console.error("Error deleting banner:", deleteError);
+        showToastMessage("Error al eliminar banner", "error");
+        return;
+      }
+
+      // Actualizar en BD
+      const updatedBanners = banners.filter((_, i) => i !== index);
+      const { error: updateError } = await supabase
+        .from("events")
+        .update({ banners: updatedBanners })
+        .eq("id", eventId);
+
+      if (updateError) {
+        console.error("Error updating banners:", updateError);
+        showToastMessage("Error al actualizar banners", "error");
+      } else {
+        setBanners(updatedBanners);
+        // Notificar al componente padre para actualizar eventData
+        if (onBannersUpdate) {
+          onBannersUpdate(updatedBanners);
+        }
+        showToastMessage("Banner eliminado");
+      }
+    } catch (error: any) {
+      console.error("Error removing banner:", error);
+      showToastMessage("Error al eliminar banner", "error");
+    }
+  };
+
+  return (
+    <div>
+      <p className="text-white/60 text-sm mb-2">Banners / Imágenes</p>
+      <div className="space-y-4">
+        {/* Galería de banners existentes */}
+        {banners.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {banners.map((bannerUrl, index) => (
+              <div key={index} className="relative group">
+                <img
+                  src={bannerUrl}
+                  alt={`Banner ${index + 1}`}
+                  className="w-full h-32 object-cover rounded-lg border border-white/10"
+                />
+                <button
+                  onClick={() => handleRemoveBanner(index)}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500/80 hover:bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Eliminar banner"
+                >
+                  <X className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Botón para subir */}
+        <div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleFileSelect}
+            className="hidden"
+            id="banner-upload"
+            disabled={uploading}
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            variant="outline"
+            className="w-full border-white/20 hover:bg-white/10"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            {uploading ? "Subiendo..." : "Agregar imágenes"}
+          </Button>
+        </div>
+      </div>
+      
+      {showToast && (
+        <Toast
+          message={toastMessage}
+          type={toastType}
+          isVisible={showToast}
+          onClose={() => setShowToast(false)}
+        />
+      )}
+    </div>
+  );
 }
 
 export default function EventPage() {
@@ -203,6 +413,7 @@ export default function EventPage() {
             lugar: event.lugar,
             audio_url: event.audio_url,
             opciones_traer: event.opciones_traer || [],
+            banners: event.banners || null,
           });
         }
       } catch (error) {
@@ -630,6 +841,19 @@ export default function EventPage() {
                 </audio>
               </div>
             )}
+
+            {/* Sección de banners */}
+            <BannerManager 
+              eventId={eventId} 
+              currentBanners={eventData.banners || []}
+              onBannersUpdate={(newBanners) => {
+                // Actualizar eventData cuando se actualicen los banners
+                setEventData({
+                  ...eventData,
+                  banners: newBanners
+                });
+              }}
+            />
           </motion.div>
 
           {/* Acciones para el owner */}

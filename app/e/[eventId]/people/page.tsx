@@ -7,6 +7,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Billboard, Text, TrackballControls, Sphere } from "@react-three/drei";
 import * as THREE from "three";
 import { supabase } from "@/lib/supabase";
+import { ChevronDown } from "lucide-react";
 
 interface Person {
   nombre: string;
@@ -127,6 +128,7 @@ function PeoplePageContent() {
   const [opcionesSeleccionadas, setOpcionesSeleccionadas] = useState<string[]>([]);
   const [todasLasOpciones, setTodasLasOpciones] = useState<string[]>([]);
   const [eventStatus, setEventStatus] = useState<"past" | "today" | "future" | null>(null);
+  const [banners, setBanners] = useState<string[]>([]);
 
   // Prevenir back button y verificar cookies al cargar
   useEffect(() => {
@@ -245,6 +247,26 @@ function PeoplePageContent() {
           setPeople(peopleList);
           setOpcionesSeleccionadas(opcionesSeleccionadasArray);
           setTodasLasOpciones(opcionesEvento);
+          
+          // Cargar banners desde el evento
+          // Asegurarse de que sea un array válido
+          let eventBanners: string[] = [];
+          if (event.banners) {
+            if (Array.isArray(event.banners)) {
+              eventBanners = event.banners.filter((b: any) => b && typeof b === 'string' && b.trim().length > 0);
+            } else if (typeof event.banners === 'string') {
+              // Por si acaso está guardado como string JSON
+              try {
+                const parsed = JSON.parse(event.banners);
+                if (Array.isArray(parsed)) {
+                  eventBanners = parsed.filter((b: any) => b && typeof b === 'string' && b.trim().length > 0);
+                }
+              } catch (e) {
+                // Ignorar error de parsing
+              }
+            }
+          }
+          setBanners(eventBanners);
           
           // No calculamos aquí, lo haremos en un useEffect separado para actualización en tiempo real
           
@@ -400,7 +422,7 @@ function PeoplePageContent() {
 
         {/* Chips - diseño elegante y espacioso */}
         {(opcionesSeleccionadas.length > 0 || todasLasOpciones.length > 0) && (
-          <div className="relative w-full px-4 md:px-8 lg:px-12 pt-6 md:pt-8 lg:pt-10 pb-20 md:pb-24">
+          <div className="relative w-full px-4 md:px-8 lg:px-12 pt-6 md:pt-8 lg:pt-10 pb-4 md:pb-6">
             <div className="max-w-6xl mx-auto space-y-5 md:space-y-6 lg:space-y-8">
               {/* Opciones seleccionadas */}
               {opcionesSeleccionadas.length > 0 && (
@@ -445,6 +467,78 @@ function PeoplePageContent() {
                   </div>
                 ) : null;
               })()}
+            </div>
+          </div>
+        )}
+
+        {/* Separador de sección - clickeable (antes de banners) */}
+        {banners && banners.length > 0 && (
+          <div className="relative w-full px-4 md:px-8 lg:px-12 py-6 md:py-8">
+            <div className="max-w-6xl mx-auto">
+              <div className="flex items-center justify-center gap-4">
+                <div className="h-px bg-gradient-to-r from-transparent via-purple-500/60 to-purple-500/30 flex-1 max-w-16" />
+                <button
+                  onClick={() => {
+                    // Scroll a la sección de banners
+                    const bannersSection = document.querySelector('[data-banners-section]');
+                    if (bannersSection) {
+                      const yOffset = -80; // Offset para el header sticky
+                      const element = bannersSection as HTMLElement;
+                      const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
+                      window.scrollTo({ top: y, behavior: 'smooth' });
+                    }
+                  }}
+                  className="flex flex-col items-center gap-2 p-3 rounded-full bg-white/5 hover:bg-white/10 border border-white/20 transition-all backdrop-blur-sm group z-40 relative pointer-events-auto"
+                  aria-label="Ver banners"
+                >
+                  <ChevronDown className="w-6 h-6 md:w-8 md:h-8 text-white/70 group-hover:text-white transition-colors" strokeWidth={2} />
+                </button>
+                <div className="h-px bg-gradient-to-r from-pink-500/30 via-pink-500/60 to-transparent flex-1 max-w-16" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sección de banners */}
+        {banners && banners.length > 0 && (
+          <div className="relative w-full px-4 md:px-8 lg:px-12 pt-4 md:pt-6" style={{ paddingBottom: 'calc(60px + 2rem)' }}>
+            <div className="max-w-6xl mx-auto">
+
+              {/* Galería de banners */}
+              <div data-banners-section>
+              {banners.length === 1 ? (
+                // Una sola imagen: centrada escalada manteniendo aspect ratio
+                <div className="flex justify-center items-center w-full">
+                  <div className="relative rounded-xl overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm group flex justify-center items-center py-4 px-4" style={{ maxWidth: '100%', width: '100%' }}>
+                    <img
+                      src={banners[0]}
+                      alt="Banner del evento"
+                      className="h-auto object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+                      loading="lazy"
+                      style={{ maxHeight: '60vh', maxWidth: '100%', width: 'auto', display: 'block', margin: '0 auto' }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                // Múltiples imágenes: grid responsive escaladas manteniendo aspect ratio
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                  {banners.map((bannerUrl, index) => (
+                    <div
+                      key={index}
+                      className="relative rounded-xl overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm group flex items-center justify-center py-4 px-4"
+                    >
+                      <img
+                        src={bannerUrl}
+                        alt={`Banner ${index + 1}`}
+                        className="h-auto object-contain transition-transform duration-300 group-hover:scale-105"
+                        loading="lazy"
+                        style={{ maxHeight: '40vh', maxWidth: '100%', width: 'auto', display: 'block', margin: '0 auto' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              </div>
             </div>
           </div>
         )}
