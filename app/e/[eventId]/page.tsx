@@ -396,7 +396,11 @@ export default function EventPage() {
     setRespuesta("no");
     setHaRespondido(true);
     // Guardar en cookie para recordar que rechazó
-    document.cookie = `destello_response_${eventId}=no; path=/; max-age=31536000; SameSite=Lax`;
+    // Usar formato consistente para Safari
+    const cookieOptions = window.location.protocol === 'https:' 
+      ? `path=/; max-age=31536000; SameSite=Lax; Secure`
+      : `path=/; max-age=31536000; SameSite=Lax`;
+    document.cookie = `destello_response_${eventId}=no; ${cookieOptions}`;
     // NO guardar en BD (según Product.md línea 158)
     // Cambiar inmediatamente a la sección de agradecimiento por rechazo
     setCurrentSection(5);
@@ -411,8 +415,11 @@ export default function EventPage() {
       setReactionType(Math.random() > 0.5 ? "applause" : "party");
       setShowReaction(true);
       setTimeout(() => setShowReaction(false), 2000);
-      // Guardar en cookie
-      document.cookie = `destello_opciones_${eventId}=${JSON.stringify([...opcionesSeleccionadas, opcion])}; path=/; max-age=31536000`;
+      // Guardar en cookie con formato consistente para Safari
+      const cookieOptions = window.location.protocol === 'https:' 
+        ? `path=/; max-age=31536000; SameSite=Lax; Secure`
+        : `path=/; max-age=31536000; SameSite=Lax`;
+      document.cookie = `destello_opciones_${eventId}=${JSON.stringify([...opcionesSeleccionadas, opcion])}; ${cookieOptions}`;
     }
   };
 
@@ -438,28 +445,21 @@ export default function EventPage() {
 
       // Guardar en cookies SOLO cuando confirma con nombre
       // Esta es la única forma de saber que realmente confirmó
-      // Safari requiere formato específico de cookies
-      const cookieOptions = `path=/; max-age=31536000; SameSite=Lax; Secure=${window.location.protocol === 'https:' ? 'true' : 'false'}`;
+      // Safari requiere formato específico de cookies - Secure flag solo en HTTPS (no Secure=false)
+      const isSecure = window.location.protocol === 'https:';
+      const cookieOptions = isSecure 
+        ? `path=/; max-age=31536000; SameSite=Lax; Secure`
+        : `path=/; max-age=31536000; SameSite=Lax`;
       
       document.cookie = `destello_response_${eventId}=yes; ${cookieOptions}`;
       document.cookie = `destello_nombre_${eventId}=${encodeURIComponent(nombreInvitado.trim())}; ${cookieOptions}`;
       document.cookie = `destello_continuado_${eventId}=true; ${cookieOptions}`;
-      
-      // Forzar actualización del navegador para que Safari guarde las cookies
-      if (typeof window !== 'undefined') {
-        // Pequeño delay para asegurar que las cookies se guarden antes de redirigir
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
       
       // Actualizar contador de confirmados
       setConfirmados((prev) => prev + 1);
       
       // Marcar que presionó Confirmar
       setHaContinuado(true);
-      
-      // Redirigir inmediatamente a /people después de confirmar
-      // Usar window.location para forzar recarga completa y asegurar que Safari lea las cookies
-      window.location.href = `/e/${eventId}/people`;
     }
   };
 
